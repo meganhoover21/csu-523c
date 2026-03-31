@@ -150,7 +150,13 @@ class(my.date)
 **b.** Compute the **day-over-day change in discharge** for each gauge — how much flow rose or fell compared to the previous day. Store this as a new column called `flow_delta`. This tells you whether conditions are improving or deteriorating, which is often more actionable than the raw level alone.
 
 ```{r}
- raw |>
+#check na values and remove
+sum(is.na(raw$Flow))
+
+clean<- raw |>
+  filter(!is.na(Flow))
+
+ clean<- clean |>
   arrange(site_no, Date) |>
   group_by(site_no) |>
   mutate(flow_delta = Flow - lag(Flow)
@@ -173,9 +179,50 @@ Hint: use `flextable()` with `set_header_labels()`, `set_caption()`, and `autofi
 :::
 
 ```{r}
+t1<-  clean |> filter(Date == my.date)|>
+  arrange (Flow) |>
+  slice_max(Flow, n = 5) |>
+  mutate(
+    Flow = round(Flow, 0),
+    flow_delta = round(flow_delta, 0))
 
+flextable(t1) |>
+  set_header_labels(
+    site_no = "Site",
+    name = "Gauge Name",
+    state = "State",
+    Date = "Date",
+    Flow = "Discharge (cfs)",
+    flow_delta = "Change (cfs)"
+  ) |>
+  set_caption("Top 5 Gauges by Discharge on September 30, 2023") |>
+  autofit()
 ```
+The flow is greatest at the Little Colorado R near Cameron, with a flow of 6,950 cfs.
 
+```{r}
+
+t2<-clean |> filter(Date == my.date)|>
+   filter(!is.na(flow_delta)) |>
+  arrange (flow_delta) |>
+  slice_max(flow_delta, n = 5) |>
+  mutate(
+    Flow = round(Flow, 0),
+    flow_delta = round(flow_delta, 0))
+
+flextable(t2) |>
+  set_header_labels(
+    site_no = "Site Number",
+    name = "Gauge Name",
+    state = "State",
+    Date = "Date",
+    Flow = "Discharge (cfs)",
+    flow_delta = "Change (cfs)"
+  ) |>
+  set_caption("Top 5 Gauges With The Greatest Day-over-Day Increase on September 30, 2023") |>
+  autofit()
+```
+Flow is rising the fastest at the Colorado R at Glenwood Springs, at 8 cfs but decreasing elsewhere on this date.
 ---
 
 # **Question 2**: Basin Metadata Join {#q2}
