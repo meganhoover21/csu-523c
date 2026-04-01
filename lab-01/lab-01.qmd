@@ -462,7 +462,6 @@ flag_q |>
 
 > Below-threshold days decreased between 2011-2023 by about 10 days. However, the amount of dry years has been consistent throughout 2000-2023. This implies that meeting water delivery obligations is tricky, because there consistently been a lack of discharge from precipitation.
 
-
 ---
 
 # **Question 5**: Annual Water Year Summary {#q5}
@@ -475,10 +474,23 @@ Calendar years are a poor fit for western US hydrology. The **water year** (Octo
 Use `if_else()` to set `water_year` for Oct–Dec months.
 :::
 
+```{r}
+flag_q<- flag_q |>
+  mutate(month= month(Date), #Oct–Dec (months 10–12)= belong to next water year. Everything else =same calendar year
+    water_year=if_else(month >= 10, year(Date) + 1, year(Date)))
+```
+
+
 **b.** For each gauge and water year, compute: total annual discharge, peak daily discharge, and number of days below the low-flow threshold.
 
 ```{r}
-
+flag_q<-flag_q |>
+  group_by(site_no, water_year) |>
+  summarise(
+    annual_flow = sum(Flow, na.rm = TRUE),
+    peak_dailyflow = max(Flow, na.rm = TRUE),
+    low_flow_days = sum(below_threshold, na.rm = TRUE),
+    .groups= "drop")
 ```
 
 **c.** Plot **total annual discharge at Lees Ferry** by water year (1980–2023) as a bar chart. Color bars above the long-term median blue and bars below it red. Add a dashed horizontal reference line at the median.
@@ -488,12 +500,27 @@ Hint: compute the long-term median and color bars by whether each year's total i
 :::
 
 ```{r}
-
+flag_q |>
+  filter(site_no == "09380000") |>
+  mutate(
+    median_flow = median(annual_flow, na.rm = TRUE),
+    above_median = annual_flow >= median_flow) |>
+  select(water_year, median_flow, above_median, annual_flow) |>
+  ggplot(aes(x = water_year, y = annual_flow, fill = above_median)) +
+  geom_col() +
+  geom_hline(aes(yintercept = median_flow), linetype = "dashed") +
+  scale_fill_manual(values = c("TRUE" = "blue", "FALSE" = "red")) +
+  labs(
+    title = "Annual Discharge at Lees Ferry (Water Years 1980–2023)",
+    x = "Water Year",
+    y = "Total Discharge (cfs)",
+    fill = "Above Median") +
+  theme_minimal()
 ```
 
 In 2–3 sentences: (1) describe the direction and approximate timing of any structural shift in the record, (2) identify one year that stands out as an exception to the dominant pattern and what you know about its cause, and (3) explain what this pattern means for Compact water accounting.
 
-> ...
+> It appears that even on years where discharge is greater than the median, there's a trend where the value have lowered from 1980 to 2023. There's also more years below the median than there are years above it. 2012 stands out as an exception to the pattern, with a greater amount of annual discharge than seen 10 years prior or 10 after; maybe due to good snowpack, or more water release from dams. For compact water accounting this means that we may not be able to meet the agreed upon water amount if this continues.
 
 ---
 
