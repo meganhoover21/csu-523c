@@ -693,11 +693,14 @@ Hint: extract `month` from `Date` with `lubridate::month()`, create `season` wit
 
 ```{r}
 #| eval: false
-data |> mutate(
-  month = month(Date),
-  season = case_when(...),
-  season = factor(season, levels = c('Snowmelt', 'Monsoon', 'Low-flow', 'Winter'))
-)
+annual<-annual|>
+  mutate(
+    season = case_when(
+      month %in% 4:6  ~ "Snowmelt",
+      month %in% 7:9  ~ "Monsoon",
+      month %in% 10:12 ~ "Low-flow",
+      month %in% 1:3  ~ "Winter"),
+    season = factor(season, levels = c("Snowmelt", "Monsoon", "Low-flow", "Winter")))
 ```
 :::
 
@@ -708,7 +711,13 @@ data |> mutate(
 **b.** Group by gauge, water year, and season. Summarize total seasonal discharge and normalized runoff per group.
 
 ```{r}
-
+seas_summary <- annual|>
+  group_by(site_no, water_year, season) |>
+  summarise(
+    seasonal_flow = sum(Flow, na.rm = TRUE),
+    normalized_flow = seasonal_flow / sum(seasonal_flow), # fraction of annual flow
+    .groups = "drop"
+  )
 ```
 
 **c.** For each gauge and water year, identify the **date of peak 7-day mean flow** and convert it to day-of-year. Plot peak day-of-year vs. water year for **Lees Ferry** with a linear trend line.
@@ -718,12 +727,27 @@ data |> mutate(
 :::
 
 ```{r}
+a<-annual |>
+  filter(site_no == "09380000") |>  # Lees Ferry
+  group_by(water_year) |>
+  slice_max(flow_7day, n = 1, with_ties = FALSE) |>
+  mutate(day_of_year = yday(Date)) |>
+  ggplot(aes(x = water_year, y = day_of_year)) +
+  geom_point() +
+  geom_smooth(method = "lm", se = TRUE, color = "blue") +
+  labs(
+    title = "Peak 7-Day Flow Timing at Lees Ferry",
+    x = "Water Year",
+    y = "Peak Day-of-Year (DOY)"
+  ) +
+  theme_minimal()
 
+a 
 ```
 
 **d.** In 2–3 sentences: (1) describe the direction and magnitude of the peak timing trend, (2) is it statistically visible or buried in noise? (3) What would a two-week earlier peak timing mean operationally for reservoir managers trying to capture spring runoff before it passes downstream?
 
-> ...
+> The magnitude and direction of the peak timing trend appears to be going down to earlier days of the year. It isn't statistically significant, it looks buried in noise. A two week earlier peak time would mean that reservoir managers would need to capture as much runoff to account for water owed to water users in the state and further down stream.
 
 ---
 
@@ -751,7 +775,39 @@ This is your fourth join. **Always verify**: the final dataset should have ~44 r
 :::
 
 ```{r}
+# Filter Lees Ferry, join Glenwood, add dominant season, log-transform
+lees_model_data <- annual1 %>%
+  filter(site_no == "09380000") %>%
+  select(water_year, lees_flow = annual_flow) %>%
+  
+  left_join(
+    annual1 %>% 
+      filter(site_no == "09085000") %>% 
+      select(water_year, glenwood_flow = annual_flow),
+    by = "water_year"
+  ) %>%
+  
+  # 3. Join dominant season at Lees Ferry
+  left_join(
+    seas_summary %>%  # seasonal table has gauge, water_year, season, total_flow
+      filter(site_no == "09380000") %>%
+      group_by(water_year) %>%
+      slice_max(seasonal_flow, n = 1, with_ties = FALSE) %>%
+      ungroup() %>%
+      select(water_year, dominant_season = season),
+    by = "water_year"
+  ) %>%
+  
+  # 4. Log-transform
+  mutate(
+    log_lees = log(lees_flow),
+    log_glenwood = log(glenwood_flow),
+    season = dominant_season  # make sure season is a factor if needed
+  )
 
+# Verify
+summary(lees_model_data)
+str(lees_model_data)
 ```
 
 ## Model Building
@@ -762,20 +818,16 @@ This is your fourth join. **Always verify**: the final dataset should have ~44 r
 #| eval: false
 mod <- lm(log_lees ~ log_glenwood * season, data = lees_model_data)
 summary(mod)
-```
-
-```{r}
 
 ```
-
+`
 **c.** In 3–4 sentences: (1) report the R² and state whether the overall model is statistically significant, (2) interpret the `log_glenwood` coefficient as an elasticity — what does it mean physically that the coefficient is greater than 1? (3) describe what the significant negative interaction terms tell you about the upstream-downstream relationship outside of Snowmelt season.
 
 ::: callout-tip
 In a log-log model, the coefficient on `log_glenwood` is an **elasticity**: a coefficient of 1.8 means a 1% increase in Glenwood Springs flow is associated with a 1.8% increase at Lees Ferry. This super-linear amplification makes physical sense — flow accumulates from tributaries between the two gauges, so an above-average headwater year compounds as it moves downstream.
 :::
 
-> ...
-
+> The R^2 value is 0.8554, meaning the model can explain ~86% of the variance in the data. It's also significantly significant with a p-value lower than .001. The log_glenwood coefficient is 1.797, meaning a 1% increase in Glenwood Springs annual flow is associated with roughly a 1.8% increase at Lees Ferry, reflecting the compounding effect of upstream tributaries contributing additional flow downstream. The significant negative interaction terms for Monsoon, Low-flow, and Winter indicate that outside the Snowmelt season, the upstream-downstream relationship weakens. 
 ---
 
 # **Question 10**: Model Evaluation {#q10}
