@@ -8,6 +8,7 @@ format:
   html:
     code-fold: true
     toc: true
+    self-contained: true
 ---
 
  include-before-body: "../slides/header.html"
@@ -28,7 +29,7 @@ knitr::opts_chunk$set(
 #| echo: false
 #| fig-align: center
 #| out-width: "100%"
-knitr::include_graphics('img/colorado-river.jpg')
+knitr::include_graphics('lab-01/img/colorado-river.jpg')
 ```
 
 In January 2023, the federal government announced the first-ever Tier 3 shortage on the Colorado River — triggering mandatory cuts to Arizona, Nevada, and Mexico. Those cuts were calculated from streamflow records like the ones you are about to pull.
