@@ -3,15 +3,15 @@ title: 'Lab 1: Data Science Tools'
 subtitle: 'Exploring Streamflow Across the Colorado River Basin'
 author:
   - name: Megan Hoover
-    email: mmcc2197@colostate.edu
+    email: megan.hoover21@gmail.com
 format:
   html:
     code-fold: true
     toc: true
-    include-before-body: ../slides/header.html
-    include-after-body: ../slides/footer-annotations.html
 ---
 
+ include-before-body: "../slides/header.html"
+    include-after-body: "../slides/footer-annotations.html"
 ```{r}
 #| include: false
 knitr::opts_chunk$set(
@@ -28,7 +28,7 @@ knitr::opts_chunk$set(
 #| echo: false
 #| fig-align: center
 #| out-width: "100%"
-knitr::include_graphics('lab-01/img/colorado-river.jpg')
+knitr::include_graphics('img/colorado-river.jpg')
 ```
 
 In January 2023, the federal government announced the first-ever Tier 3 shortage on the Colorado River — triggering mandatory cuts to Arizona, Nevada, and Mexico. Those cuts were calculated from streamflow records like the ones you are about to pull.
@@ -37,34 +37,13 @@ The Colorado River Basin supplies drinking water to 40 million people across 7 U
 
 In this lab you will work with real streamflow records pulled directly from the **USGS National Water Information System (NWIS)** — the same federal system water managers query every morning. You will build a complete analytical pipeline: from raw API call to normalized comparisons, threshold detection, basin-wide trend visualization, and a predictive model of the Compact's key accounting point.
 
----
-
-# Set-up {#setup}
-
-## Repository
-
-1. Create a new repository called `csu-523c` on GitHub
-2. Clone it to your `~/github/` directory
-3. Open the project in RStudio (`File → Open Project`)
-4. Download this labs qmd file [here](lab-01.qmd) into your repo
-5. Add your information to the yaml
-
-```yaml
----
-...
-author:
-  - name: Megan Hoover
-    email: mmcc2197@colostate.edu
-...
----
-```
 
 ## Libraries
 
 Install and load the following packages. If any are missing, run `install.packages("packagename")` first:
 
 ```{r}
-#| eval: false
+
 if (!requireNamespace("pacman", quietly = TRUE)) install.packages("pacman")
 
 pacman::p_load(
@@ -74,13 +53,12 @@ pacman::p_load(
   patchwork,
   flextable,
   lubridate,
-  broom
+  broom,
+  tibble
 )
 ```
 
-::: callout-note
-`pacman::p_load()` installs any missing packages and loads them in one step — convenient for students setting up dependencies.
-:::
+
 
 ## Data
 
@@ -580,7 +558,7 @@ ggplot(annual_anomaly, aes(x = water_year, y = site_no, fill = std_anomaly)) +
     title = "Basin-Wide Standardized Discharge Anomalies (1980–2023)",
     x = "Water Year",
     y = "Gauge (site_no)") +
-  theme_minimal() +
+  theme_minimal() 
 
 ```
 
@@ -692,7 +670,7 @@ Make `season` a factor with levels in hydrological order: Snowmelt, Monsoon, Low
 Hint: extract `month` from `Date` with `lubridate::month()`, create `season` with `case_when()` mapping month ranges to labels, then convert to a factor with explicit level ordering:
 
 ```{r}
-#| eval: false
+
 annual<-annual|>
   mutate(
     season = case_when(
@@ -703,10 +681,6 @@ annual<-annual|>
     season = factor(season, levels = c("Snowmelt", "Monsoon", "Low-flow", "Winter")))
 ```
 :::
-
-```{r}
-
-```
 
 **b.** Group by gauge, water year, and season. Summarize total seasonal discharge and normalized runoff per group.
 
@@ -815,7 +789,7 @@ str(lees_model_data)
 **b.** Fit a linear model predicting `log_lees` from `log_glenwood`, `season`, and their interaction, If you haven't seen linear modeling in R, we will cover it in more detail latter in this course, but, the syntax is straightforward: `lm(response ~ predictor1 * predictor2, data = mydata)` fits a model with main effects and an interaction term. The interaction (`*`) allows the relationship between Glenwood and Lees to differ by season while a model without interaction (`lm(log_lees ~ log_glenwood + season)`) would assume the same Glenwood-Lees relationship in every season.
 
 ```{r}
-#| eval: false
+
 mod <- lm(log_lees ~ log_glenwood * season, data = lees_model_data)
 summary(mod)
 
@@ -837,7 +811,6 @@ A model that fits well on average can still fail in predictable ways. Two core a
 **a.** Use `broom::augment()` to produce a tidy data frame of predictions and residuals alongside the original data:
 
 ```{r}
-#| eval: false
 aug <- augment(mod, data = lees_model_data)
 ```
 
@@ -953,11 +926,5 @@ Every tool — `dplyr`, `ggplot2`, `zoo`, `patchwork`, `broom`, `flextable` — 
 - **Reproducibility:** code runs end-to-end, used parameter objects (`my.date`), and included any small checks or assertions.
 - **Clarity & Presentation:** readable code, labeled tables/plots, captions for `flextable` outputs, and a clear 1-paragraph interpretation.
 
-# Submission
 
-1. Render: `quarto render lab-01.qmd`
-2. Push: `git add -A && git commit -m "lab 1 complete" && git push`
-3. Activate GitHub Pages: **GitHub → Settings → Pages → Deploy from branch → main**
-4. Submit your live URL to Canvas: `https://USERNAME.github.io/csu-523c/lab-01.html`
 
-Add this project to your personal website with a brief description — it counts toward end-of-semester extra credit.
