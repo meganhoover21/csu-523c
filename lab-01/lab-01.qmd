@@ -854,7 +854,8 @@ Together these make model results as pipeable as any other data frame — straig
 :::
 
 ```{r}
-
+# inspect first few rows
+head(aug)
 ```
 
 **b.** Create a **predicted vs. actual scatter plot**. Add a dashed 1:1 reference line (perfect prediction). Color points by `season`. Identify any point that sits noticeably off the line.
@@ -864,18 +865,41 @@ Together these make model results as pipeable as any other data frame — straig
 :::
 
 ```{r}
+ggplot(aug, aes(x = .fitted, y = log_lees, color = season)) +
+  geom_point(size = 3) +
+  geom_abline(slope = 1, intercept = 0, linetype = "dashed") +
+  theme_minimal() +
+  labs(
+    x = "Predicted log(Lees Ferry flow)",
+    y = "Observed log(Lees Ferry flow)",
+    color = "Season",
+    title = "Predicted vs. Actual Lees Ferry Flow"
+  ) #monsoon points are outlier
 
+outlier <- aug %>% 
+  slice_max(abs(.resid), n = 1) %>% 
+  select(water_year, .resid, season, lees_flow, .fitted)
+
+outlier
 ```
 
 **c.** Plot a **histogram of the residuals** with a vertical dashed line at zero.
 
 ```{r}
-
+ggplot(aug, aes(x = .resid)) +
+  geom_histogram(bins = 15, fill = "skyblue", color = "black") +
+  geom_vline(xintercept = 0, linetype = "dashed") +
+  theme_minimal() +
+  labs(
+    x = "Residuals",
+    y = "Count",
+    title = "Residuals of Lees Ferry Flow Model"
+  )
 ```
 
 **d.** In 3–4 sentences: (1) identify the outlier water year visible in your scatter plot. Which year is it and why did the model fail to predict it? (2) Do the residuals appear approximately normal, or is there a tail that concerns you? (3) Name two additional predictors that would most improve this model and explain the physical mechanism behind each.
 
-> ...
+> The outlier water year in the scatterplot is 1983, it has the highest residual of .6. tells you how far off the model was. Due to a log transformation assuming a 1:1 relationship between both basins, one extreme event is likely to offset the value. The residuals have a mostly normal distribution, but are slightly skewed right. Temperature and precipitation predictors would help to improve the model by giving information that impacts discharge events.  
 
 ---
 
