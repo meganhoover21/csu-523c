@@ -444,10 +444,10 @@ flag_q |>
 :::
 
 ```{r}
- flag_q <- flag_q|>
+ annual <- flag_q|>
   mutate(year = lubridate::year(Date)) 
 
-flag_q |>
+annual|>
   filter(year >= 2000, year <= 2023,
        site_no == "09380000") |>
  mutate(period = if_else(year <= 2010, "2000–2010", "2011–2023")) |>
@@ -475,7 +475,7 @@ Use `if_else()` to set `water_year` for Oct–Dec months.
 :::
 
 ```{r}
-flag_q<- flag_q |>
+annual<- annual|>
   mutate(month= month(Date), #Oct–Dec (months 10–12)= belong to next water year. Everything else =same calendar year
     water_year=if_else(month >= 10, year(Date) + 1, year(Date)))
 ```
@@ -484,7 +484,7 @@ flag_q<- flag_q |>
 **b.** For each gauge and water year, compute: total annual discharge, peak daily discharge, and number of days below the low-flow threshold.
 
 ```{r}
-flag_q<-flag_q |>
+annual1<-annual|>
   group_by(site_no, water_year) |>
   summarise(
     annual_flow = sum(Flow, na.rm = TRUE),
@@ -500,7 +500,7 @@ Hint: compute the long-term median and color bars by whether each year's total i
 :::
 
 ```{r}
-flag_q |>
+annual1|>
   filter(site_no == "09380000") |>
   mutate(
     median_flow = median(annual_flow, na.rm = TRUE),
@@ -541,6 +541,23 @@ Hint: summarize baseline mean and SD per gauge (1980–2010), join those stats t
 :::
 
 ```{r}
+baseline_stats <- annual1 |>
+  filter(water_year >= 1980, water_year <= 2010) |>
+  group_by(site_no) |>
+  summarise(
+    base_mean_annflow = mean(annual_flow, na.rm = TRUE),
+    base_sd_annflow   = sd(annual_flow, na.rm = TRUE),
+    .groups = "drop") #gives one row per gauge with the mean and SD of annual discharge over the baseline period.
+
+#join baseline to annual
+annual_anomaly <- annual1 |>
+  left_join(baseline_stats, by = "site_no") |>
+   mutate(std_anomaly = (annual_flow - base_mean_annflow) / base_sd_annflow)
+
+nrow(annual_anomaly) == nrow(annual1)   # Should be TRUE
+sum(is.na(annual_anomaly$base_mean_annflow)) # Should be 0
+sum(is.na(annual_anomaly$base_sd_annflow))   # Should be 0
+
 
 ```
 
@@ -551,12 +568,25 @@ Hint: summarize baseline mean and SD per gauge (1980–2010), join those stats t
 :::
 
 ```{r}
+# Heatmap using site_no
+ggplot(annual_anomaly, aes(x = water_year, y = site_no, fill = std_anomaly)) +
+  geom_tile(color = "white") +  # optional white lines between tiles
+  scale_fill_gradient2(
+    low = "red", mid = "white", high = "blue", midpoint = 0,
+    limits = c(-3, 3),       # clamp extreme anomalies
+    oob = scales::squish,
+    name = "Standardized\nAnomaly") +
+  labs(
+    title = "Basin-Wide Standardized Discharge Anomalies (1980–2023)",
+    x = "Water Year",
+    y = "Gauge (site_no)") +
+  theme_minimal() +
 
 ```
 
 **c.** In 3–4 sentences: (1) describe whether the post-2000 drought signal appears across all gauges or only some, (2) identify two specific years that appear as basin-wide anomalies — one dry, one wet — and name the climate event that caused each, and (3) explain what simultaneous basin-wide anomalies tell you that a single-gauge record cannot.
 
-> ...
+> The post 2000 drought shows up mostly across all gauges, except for certain years (2008, 2009, 2011, 2019). Some weird anomalies include a wet year across all basins during 1986; this was due to high snowpack and resulting snow melt. In the 2013 water year, it was wet all across the basins; this was due to low snowpack and a "mega drought". Basin wide anomalies show what the discharge trend is over several watersheds vs. a single area from a gauge. It can reveal trends that are likely to occur, preparing water resource managers.
 
 ---
 
@@ -577,7 +607,18 @@ Hint: join coordinates from `site_meta` to the annual table, then compute weight
 Note: mapping can use `map_data("state")`; if `map_data()` is not available install the `maps` package (`install.packages("maps")`) or use `ggplot2::map_data("state")` which provides equivalent polygons.
 
 ```{r}
+# Join coordinates
+ann_coords <- annual1 |>
+  left_join(site_meta |> select(site_no, dec_lat_va, dec_long_va), by = "site_no")
 
+# Compute weighted center per year
+weighted_center <- ann_coords |>
+  group_by(water_year) |>
+  summarise(
+    total_flow = sum(annual_flow, na.rm = TRUE),
+    weighted_lon = sum(dec_long_va * annual_flow, na.rm = TRUE) / sum(annual_flow, na.rm = TRUE),
+    weighted_lat = sum(dec_lat_va * annual_flow, na.rm = TRUE) / sum(annual_flow, na.rm = TRUE),
+    .groups = "drop")
 ```
 
 **b.** Create a two-panel figure using `patchwork`:
@@ -593,11 +634,44 @@ If you haven't seen patchwork before, it allows you to combine multiple ggplots 
 
 ```{r}
 
+library(tigris)
+# Western US basemap
+#states <- map_data("state")
+states <- states(cb = TRUE) |>
+  filter(STUSPS %in% c("AZ","CO","UT","NV","NM","WY"))
+
+p_map <- ggplot() +
+  geom_sf(data = states, fill = "gray95", color = "black") +
+  geom_path(data = weighted_center, 
+            aes(x = weighted_lon, y = weighted_lat, color = water_year), size = 1, alpha= .5) +
+  geom_point(data = weighted_center, 
+             aes(x = weighted_lon, y = weighted_lat, color = water_year), size = 3, alpha= .5) +
+  scale_color_gradient(low = "blue", high = "red") +
+  coord_sf(xlim = c(-120, -100), ylim = c(30, 45)) +
+  labs(title = "Flow-Weighted Center of Basin (1980–2023)",
+       x = "Longitude", y = "Latitude", color = "Water Year") +
+  theme_minimal()
+
+# Right panel: weighted latitude time series with linear trend
+
+p_lat <- ggplot(weighted_center,
+        aes(x = water_year, y = weighted_lat)) +
+  geom_line(color = "black") +
+  geom_point(aes(color = water_year), size = 2) +
+  geom_smooth(method = "lm", linetype = "dashed",
+  color = "darkgreen") +
+  scale_color_gradient(low = "blue", high = "red") +
+  labs(title = "Weighted Mean Latitude Over Time",
+    x = "Water Year", y = "Weighted Latitude", color = "Water Year") +
+  theme_minimal()
+
+# Combine panels side by side
+p_map / p_lat
 ```
 
 **c.** Your latitude time series should show two years where the weighted center spikes dramatically northward. Identify those two years and explain: (1) what climate event caused each spike, (2) what they have in common physically, and (3) what the long-term upward trend in weighted latitude suggests about which part of the basin is becoming proportionally more important to total flow — and why that matters for water managers downstream.
 
-> ...
+> The northward spike occured in 1995 and in 2023. Droughts in both of these years caused the spike in weighted mean discharge to shift North. Both of these years caused shortages in South Basins. The longterm upward trend suggests that the Southern Basin will experience less flows, while the North basin will have the majority. This will affect downstream water users.
 
 ---
 
