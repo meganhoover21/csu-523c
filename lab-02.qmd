@@ -33,7 +33,7 @@ For this lab, we'll need three datasets:
 
 3.  All US cities (1.3)
 
-### **1.1 Define a Projection**
+#### **1.1 Define a Projection**
 
 Distance calculations require a projected coordinate system that minimizes distance distortion at the scale of CONUS. We will use the **North America Equidistant Conic**:
 
@@ -54,7 +54,7 @@ This PROJ string defines:
 
 Distortion is minimized between the two standard parallels — 20°N and 60°N encompasses all of CONUS, making this projection well-suited for national-scale distance analysis.
 
-### **1.2 CONUS State Boundaries**
+#### **1.2 CONUS State Boundaries**
 
 Use `tigris::states()` to get US state boundaries, filter to CONUS, and transform to the equidistant projection.
 
@@ -66,8 +66,75 @@ Tip**
 ```{r}
 ?states
 states<-states(cb = TRUE, progress_bar = FALSE) |>
-  filter(!STUSPS %in% c("AK", "HI", "AS", "GU", "MP", "PR", "VI","DC"))
+  filter(!STUSPS %in% c("AK", "HI", "AS", "GU", "MP", "PR", "VI","DC")) |>
+  st_transform(eqdc)
 ```
+
+#### **1.3 North American Country Boundaries**
+
+Use `rnaturalearth::ne_countries()` to get country boundaries for the United States, Canada, and Mexico.
+
+**Tip**
+
+`ne_countries()` returns an `sf` object directly when you specify `returnclass = "sf"`. Filter on the `admin` column to keep only the three countries you need, then transform to `eqdc`. See `?rnaturalearth::ne_countries` for available scales and parameters.
+
+```{r}
+?rnaturalearth::ne_countries
+countries<- ne_countries(returnclass = "sf") |>
+filter(admin %in% c("United States of America", "Canada","Mexico"))|>
+ st_transform(eqdc) 
+```
+
+#### **1.4 US City Locations**
+
+Go to [simplemaps.com/data/us-cities](https://simplemaps.com/data/us-cities) and download the free basic dataset into your `data/` directory.
+
+Read it in with `readr::read_csv()` and explore it — understand what columns are available before proceeding.
+
+The raw data is tabular — coordinates are stored as numeric columns, not geometry. Convert it to a spatial object using `st_as_sf()`, specifying which columns hold X and Y coordinates and what CRS they use. Raw lat/lon from a CSV is almost always WGS84 (EPSG:4326).
+
+**Tip**
+
+After creating the `sf` object, you’ll need to remove rows that fall outside CONUS. The `st_union(states)` geometry provides a boundary to filter against. See `?sf::st_filter` for how to select geometries that intersect or fall within a bounding polygon.
+
+```{r}
+?sf::st_filter
+cities<- read_csv("data/uscities.csv") |>
+  st_as_sf(coords = c("lng", "lat"), crs = 4326) |>
+  st_transform(st_crs(states)) |> #Reprojects cities to same CRS as states object
+   st_filter(st_union(states)) #Merges all state polygons into one big one & keeps only points intersecting boundary line.
+  
+```
+
+**Verify all three datasets before proceeding**
+
+Run these checks before moving to Q2 — a CRS mismatch here will silently corrupt every distance calculation downstream.
+
+```{r}
+# All three must return the same CRS
+st_crs(states) == st_crs(countries)
+st_crs(states) == st_crs(cities)
+
+
+# Row counts should be reasonable
+nrow(states)    # should be 48
+nrow(cities)    # should be ~28,000
+
+```
+
+### **Question 2: Distance Calculations**
+
+Here we calculate the distance from each US city to four boundaries:
+
+1.  The US national border (coastline + land borders, resolved)
+
+2.  The nearest state border (internal boundaries preserved)
+
+3.  The Mexican border
+
+4.  The Canadian border
+
+In all cases, since we want distance to a **border** (a line), we must cast our polygon geometries to `MULTILINESTRING` before computing distances. The choice of `st_union` vs. `st_combine` determines whether interior boundaries are dissolved or preserved — a distinction that matters for questions 2.1 and 2.2.
 
 Quarto enables you to weave together content and executable code into a finished document. To learn more about Quarto see <https://quarto.org>.
 
@@ -87,4 +154,3 @@ You can add options to executable code like this
 ```
 
 The `echo: false` option disables the printing of code (only output is displayed).
-
