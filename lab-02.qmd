@@ -136,6 +136,156 @@ Here we calculate the distance from each US city to four boundaries:
 
 In all cases, since we want distance to a **border** (a line), we must cast our polygon geometries to `MULTILINESTRING` before computing distances. The choice of `st_union` vs. `st_combine` determines whether interior boundaries are dissolved or preserved — a distinction that matters for questions 2.1 and 2.2.
 
+**The geometry type determines the answer**
+
+-   `POLYGON` / `MULTIPOLYGON` → distance to the interior is **0** (you’re inside the area)
+
+-   `MULTILINESTRING` → distance to the **boundary line** — what we actually want
+
+```         
+# Wrong: distance to a polygon st_distance(city_point, state_polygon)   # returns 0 if city is inside  # Right: distance to the border st_distance(city_point, state_polygon |> st_cast("MULTILINESTRING"))
+```
+
+#### **2.1 Distance to US National Border (km)**
+
+The national border is the **resolved** outer boundary of all states — internal state lines dissolved, only the coastline and land borders remain.
+
+**Tip**
+
+Use `st_union()` to merge all state polygons into a single boundary (dissolving internal borders), then cast to `MULTILINESTRING` so distances are measured to the **border line** rather than interior. Compute distance using `st_distance()` and convert the result to kilometers using `set_units()` from the `units` package — this ensures clean numeric output and correct unit handling downstream.
+
+Store the result as a new column `dist_to_border` in your cities data frame. Produce a **flextable** of the 5 cities farthest from the national border — include city name, state, and distance.
+
+```{r}
+?st_distance
+?set_units
+us_border <- states |>
+  st_union() |> # dissolve internal state boundaries
+  st_cast("MULTILINESTRING")# convert polygon to boundary lines
+
+cities <- cities |>
+  mutate(dist_to_border = st_distance(geometry, us_border),
+    dist_to_border = set_units(dist_to_border, "km"))
+
+
+cities |>
+  mutate(dist_to_border = drop_units(dist_to_border)) |> #removes the units, leaving a plain numeric column.
+  arrange(desc(dist_to_border)) |>
+  slice_head(n = 5) |>
+  select(city, state_name, dist_to_border) |>
+  flextable() |>
+  set_header_labels(
+    city = "City",
+    state_name = "State",
+    dist_to_border= "Distance to Border (km)") |>
+  set_caption("Top 5 Cities Farthest From US Borders by")|>
+  autofit()
+```
+
+#### **2.2 Distance to Nearest State Border (km)**
+
+The nearest state border uses **preserved** internal boundaries — we want every state line, not just the outer edge. Use `st_combine()` which keeps all boundaries, then cast to `MULTILINESTRING`.
+
+Store as `dist_to_state`. Produce a flextable of the 5 cities farthest from any state border.
+
+```{r}
+us_border <- states |>
+  st_combine() |> # keep internal state boundaries
+  st_cast("MULTILINESTRING")# convert polygon to boundary lines
+
+cities <- cities |> #us_border is state border in this
+  mutate(dist_to_state = st_distance(geometry, us_border),
+    dist_to_state = set_units(dist_to_state, "km"))
+
+
+cities |>
+  mutate(dist_to_state = drop_units(dist_to_state)) |> #removes the units, leaving a plain numeric column.
+  arrange(desc(dist_to_state)) |>
+  slice_head(n = 5) |>
+  select(city, state_name, dist_to_state) |>
+  flextable() |>
+  set_header_labels(
+    city = "City",
+    state_name = "State",
+    dist_to_state= "Distance to State Border (km)") |>
+  set_caption("Top 5 Cities Farthest From US State Borders")|>
+  autofit()
+
+```
+
+**Tip**
+
+Think carefully about why the answers for 2.1 and 2.2 differ. The city farthest from the national border might be close to a state line. The city farthest from any state line must be far from all internal AND external borders.
+
+-   **2.1 (National border)**: distance only to the outer boundary (coastline + international borders).
+
+    -    A city deep inside a state can be far from the national border but close to an internal state line.
+
+<!-- -->
+
+-    **2.2 (State borders)** → distance to any state line, including internal boundaries.
+
+    -    The farthest city from all state lines must be roughly in the center of a large state.
+
+#### **2.3 Distance to Mexico (km)**
+
+Isolate Mexico from your countries object. Cast to `MULTILINESTRING`. Compute distance from each city to the Mexican border. Store as `dist_to_mexico`. Produce a flextable of the 5 cities farthest from Mexico.
+
+```{r}
+ notus<- countries |>
+      filter(admin == "Mexico") |>
+      st_cast("MULTILINESTRING") #convert polygon to boundary lines
+  
+
+cities <- cities |> #us_border is state border in this
+  mutate(dist_to_mexico = st_distance(geometry, notus),
+    dist_to_mexico = set_units(dist_to_mexico, "km"))
+
+
+cities |>
+  mutate(dist_to_mexico = drop_units(dist_to_mexico)) |> #removes the units, leaving a plain numeric column.
+  arrange(desc(dist_to_mexico)) |>
+  slice_head(n = 5) |>
+  select(city, state_name, dist_to_mexico) |>
+  flextable() |>
+  set_header_labels(
+    city = "City",
+    state_name = "State",
+    dist_to_mexico = "Distance to Mexico Border (km)") |>
+  set_caption("Top 5 Cities Farthest From Mexico Border")|>
+  autofit()
+
+```
+
+#### **2.4 Distance to Canada (km)**
+
+Same approach as 2.3, for Canada. Store as `dist_to_canada`. Produce a flextable of the 5 cities farthest from Canada.
+
+```{r}
+notus<- countries |>
+      filter(admin == "Canada") |>
+      st_cast("MULTILINESTRING") #convert polygon to boundary lines
+  
+
+cities <- cities |> #us_border is state border in this
+  mutate(dist_to_canada = st_distance(geometry, notus),
+    dist_to_canada = set_units(dist_to_canada, "km"))
+
+
+cities |>
+  mutate(dist_to_canada = drop_units(dist_to_canada)) |> #removes the units, leaving a plain numeric column.
+  arrange(desc(dist_to_canada)) |>
+  slice_head(n = 5) |>
+  select(city, state_name, dist_to_canada) |>
+  flextable() |>
+  set_header_labels(
+    city = "City",
+    state_name = "State",
+    dist_to_canada = "Distance to Canadian Border (km)") |>
+  set_caption("Top 5 Cities Farthest From Canadian Border")|>
+  autofit()
+```
+
 Quarto enables you to weave together content and executable code into a finished document. To learn more about Quarto see <https://quarto.org>.
 
 ## Running Code
