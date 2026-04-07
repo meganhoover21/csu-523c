@@ -286,7 +286,92 @@ cities |>
   autofit()
 ```
 
-Quarto enables you to weave together content and executable code into a finished document. To learn more about Quarto see <https://quarto.org>.
+### **Question 3: Mapping Distance Patterns**
+
+Now visualize the distance data you computed. You will use `ggplot2` for all maps, `ggrepel::geom_label_repel()` for non-overlapping city labels, and `gghighlight` to emphasize subsets.
+
+#### **3.1 Reference Map**
+
+Create a base reference map showing:
+
+-   North America (US, Canada, Mexico) as filled grey polygons
+
+-   CONUS state boundaries as dashed lines
+
+-   The 10 largest US cities by population as labeled points
+
+**Tip**
+
+Use `geom_sf()` for spatial layers. For labels that don’t overlap:
+
+```         
+ggrepel::geom_label_repel(   data = big_cities,   aes(geometry = geometry, label = city),   stat = "sf_coordinates",   size = 3 )
+```
+
+`stat = "sf_coordinates"` extracts point coordinates from the geometry for label placement — required when using `ggrepel` with `sf` objects.
+
+```{r}
+ggplot() +
+  # North American countries
+  geom_sf(data = countries, fill = "grey80", color = "black") +
+   # CONUS state boundaries as dashed lines
+  geom_sf(data = states, fill = NA, color = "black", linetype = "dashed") +
+   # Plot and label the 10 largest cities inline
+  geom_sf( data = cities %>% arrange(desc(population)) %>% slice_head(n = 10),
+    color = "red", size = 2 ) +
+  ggrepel::geom_label_repel(
+    data = cities %>% arrange(desc(population)) %>% slice_head(n = 10),
+    aes(geometry = geometry, label = city),
+    stat = "sf_coordinates",
+    size = 3,
+    min.segment.length = 0 ) +
+  # Theme and labels
+  theme_minimal() +
+  labs(
+    title = "Reference Map: CONUS and Major US Cities",
+    subtitle = "10 Largest US Cities by Population",
+    caption = "Data: tigris, rnaturalearth, simplemaps")
+```
+
+#### **3.2 Distance to National Border**
+
+Color all US cities by their distance to the national border using a continuous color scale. Highlight and label the 5 cities farthest from the border.
+
+Your map should: - Use `scale_color_viridis_c()` for the distance gradient - Show the CONUS outline - Label the 5 farthest cities with `ggrepel`
+
+```{r}
+ggplot() +
+  # CONUS outline
+  geom_sf(data = states, fill = NA, color = "black") +
+  # All US cities colored by distance to national border
+  geom_sf(data = cities,
+    aes(color = drop_units(dist_to_border)),
+    size = 1) +
+  scale_color_viridis_c(option = "plasma", name = "Distance to Border (km)") +
+   # Label 5 farthest cities inline
+  ggrepel::geom_label_repel(data = cities %>%
+      mutate(dist_km = drop_units(dist_to_border)) %>%
+      arrange(desc(dist_km)) %>%
+      slice_head(n = 5),
+    aes(geometry = geometry, label = city),
+    stat = "sf_coordinates",
+    size = 3,
+    min.segment.length = 0) +
+  # Theme and labels
+  theme_minimal() +
+  labs(
+    title = "US Cities by Distance to National Border",
+    subtitle = " Top 5 Farthest Cities Labeled",
+    caption = "Data: tigris, rnaturalearth, simplemaps" )
+```
+
+In 2–3 sentences:
+
+**(1) where are the cities farthest from the national border?** The cities farthest from the national border are located in Kansas.
+
+**(2) Does the geographic pattern make sense given the shape of CONUS?** It makes sense because the projection is equidistant conic, which preserves distance.
+
+**(3) Name one water resources application where distance to a national border would be a meaningful variable**. Distance of aquifers and watershed management to national borders matters in terms of how water is managed.
 
 ## Running Code
 
