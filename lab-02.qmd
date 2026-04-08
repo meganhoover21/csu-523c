@@ -17,8 +17,7 @@ More recent operational discussions involving ICE and border enforcement through
 
 ```{r}
 pacman::p_load(
-  tidyverse, sf, units, tigris, rnaturalearth, gghighlight, ggrepel, flextable
-)
+  tidyverse, sf, units, tigris, rnaturalearth, gghighlight, ggrepel, flextable, leaflet)
 
 options(tigris_use_cache = TRUE)
 ```
@@ -616,11 +615,31 @@ ggplot() +
 
 In 2–3 sentences:
 
-**(1) how many states have at least one city in the zone?**
+**(1) how many states have at least one city in the zone?** There are 35 states that have at least one city in the zone.
 
-**(2) Are there states where the most populous city is NOT in the zone — what does that tell you about that state’s geography?**
+```{r}
+cities |>
+  mutate(dist_to_border = drop_units(dist_to_border)) |> # convert units to numeric
+  filter(dist_to_border <= 160) |>                       # keep only cities in the 100-mile zone
+  distinct(state_name) |>   # get unique states
+  nrow()     
+```
 
-**(3) How might the jurisdictional boundary created by this rule create challenges for environmental monitoring programs that cross state or national boundaries?**
+**(2) Are there states where the most populous city is NOT in the zone — what does that tell you about that state’s geography?** Yes, there are many states without the most populous city not in the zone. Some of those cities are Denver, Salt Lake City, Albuquerque, Wichita, Cheyenne, etc.
+
+```{r}
+cities |>
+  mutate(dist_to_border = drop_units(dist_to_border)) |>
+  group_by(state_name) |>
+  slice_max(order_by = population, n = 1, with_ties = FALSE) |>  # top city per state
+  ungroup() %>%
+  filter(dist_to_border > 160) %>%  # most populous city not in 100-mile zone
+  select(state_name, city, dist_to_border) %>% 
+  arrange(desc(dist_to_border))
+
+```
+
+**(3) How might the jurisdictional boundary created by this rule create challenges for environmental monitoring programs that cross state or national boundaries?** Crossborder coordination becomes harder because regulatory zones may not match natural water system boundaries, leading to gaps in pollution monitoring, water resource management, or disaster response.
 
 ### **Question 5: Interactive Leaflet Exercise — Build an interactive map**
 
@@ -654,19 +673,86 @@ Create an interactive `leaflet` map that includes:
 
 -   **Legend**: Show what the color scale represents
 
-## Running Code
+**Tip**
 
-When you click the **Render** button a document will be generated that includes both content and the output of embedded code. You can embed code like this:
+Key `leaflet` functions: - `leaflet()` to initialize - `addProviderTiles()` for basemaps - `addCircleMarkers()` or `addMarkers()` for point data - `addPolygons()` for state boundaries - `addLegend()` for a color scale legend - `addLayersControl()` to make layers toggleable
 
-```{r}
-1 + 1
-```
-
-You can add options to executable code like this
+See `?leaflet` and the [Leaflet for R documentation](https://rstudio.github.io/leaflet/) for syntax and options. Remember that `leaflet` works with WGS84 coordinates (EPSG:4326), so you may need to transform your data before plotting.
 
 ```{r}
-#| echo: false
-2 * 2
+# create a simple color palette
+pal <- colorNumeric(
+  "viridis",
+  domain = cities |> mutate(dist_to_border = drop_units(dist_to_border)) |> pull(dist_to_border))
+
+leaflet() |>
+  # basemap
+  addProviderTiles(providers$OpenStreetMap) |>
+  # state boundaries
+  addPolygons(
+    data = st_transform(states, 4326),
+    color = "black",
+    weight = 1,
+    fill = FALSE) |>
+  
+  # all cities (colored by distance)
+  addCircleMarkers(
+    data = cities |>
+      st_transform(4326) |>
+      mutate(
+        dist_to_border = drop_units(dist_to_border),
+        dist_to_mexico = drop_units(dist_to_mexico),
+        dist_to_canada = drop_units(dist_to_canada)),
+    
+    color = ~pal(dist_to_border),
+    radius = 2,
+    fillOpacity = 0.3,
+    popup = ~paste0(
+      city, ", ", state_name, "<br>",
+      "Pop: ", population, "<br>",
+      "Border: ", round(dist_to_border, 1), " km<br>",
+      "Mexico: ", round(dist_to_mexico, 1), " km<br>",
+      "Canada: ", round(dist_to_canada, 1), " km"),
+    
+    group = "All Cities") |>
+  
+  # 100-mile zone
+  addCircleMarkers(
+    data = cities |>
+      st_transform(4326) |>
+      mutate(dist_to_border = drop_units(dist_to_border))|>
+      filter(dist_to_border <= 160),
+    color = "red",
+    radius = 2,
+     fillOpacity = 0.3,
+    popup = ~city,
+    group = "100-mile zone") |>
+  
+  # equidistant zone
+  addCircleMarkers(
+    data = cities |>
+      st_transform(4326) |>
+      mutate(diff = abs(drop_units(dist_to_mexico - dist_to_canada))) |>
+      filter(diff <= 100),
+    color = "blue",
+    radius = 2,
+     fillOpacity = 0.3,
+    popup = ~city,
+    group = "Equidistant zone") |>
+  
+  # legend
+  addLegend(
+    "bottomright",
+    pal = pal,
+    values = cities |> mutate(dist_to_border = drop_units(dist_to_border)) |> pull(dist_to_border),
+    title = "Distance to border (km)") |>
+  
+  # layer control
+  addLayersControl(
+    overlayGroups = c("All Cities", "100-mile zone", "Equidistant zone"),
+    options = layersControlOptions(collapsed = FALSE) )
 ```
 
-The `echo: false` option disables the printing of code (only output is displayed).
+**Methods note**: **In 2–3 sentences, describe the CRS transformation needed to convert from `eqdc` to `leaflet`-compatible coordinates, and any design choices you made to keep the map responsive (e.g., filtering, clustering, or simplifying geometries).**
+
+The spatial data were originally projected in an Equidistant Conic projection (EPSG defined by `eqdc`) to ensure accurate distance calculations across CONUS. Because Leaflet requires geographic coordinates in WGS84, all spatial layers were transformed using `st_transform(4326)` before mapping. Each type of city marker was assigned to a different group to allow turning on and off layers. To maintain performance, the map uses small circle markers, filtered subsets for highlighted layers, and avoids rendering unnecessary attributes or overly large geometries.
