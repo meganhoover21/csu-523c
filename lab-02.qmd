@@ -367,11 +367,112 @@ ggplot() +
 
 In 2–3 sentences:
 
-**(1) where are the cities farthest from the national border?** The cities farthest from the national border are located in Kansas.
+**(1) where are the cities farthest from the national border?** The cities farthest from the national border are located in Kansas
 
 **(2) Does the geographic pattern make sense given the shape of CONUS?** It makes sense because the projection is equidistant conic, which preserves distance.
 
 **(3) Name one water resources application where distance to a national border would be a meaningful variable**. Distance of aquifers and watershed management to national borders matters in terms of how water is managed.
+
+#### **3.3 Distance to Nearest State Border**
+
+Color all cities by distance to the nearest state border. Highlight and label the 5 cities farthest from any state line.
+
+```{r}
+ggplot() +
+  # CONUS outline
+  geom_sf(data = states, fill = NA, color = "black") +
+  
+  # Cities colored by distance to nearest state border
+  geom_sf(
+    data = cities,
+    aes(color = drop_units(dist_to_state)),
+    size = 1) +
+  scale_color_viridis_c(
+    option = "plasma",
+    name = "Distance to State Border (km)" ) +
+  
+  # Label the 5 farthest cities inline
+  ggrepel::geom_label_repel(
+    data = cities %>%
+      mutate(dist_km = drop_units(dist_to_state)) %>%
+      arrange(desc(dist_km)) %>%
+      slice_head(n = 5),
+    aes(geometry = geometry, label = city),
+    stat = "sf_coordinates",
+    size = 3,
+    min.segment.length = 0) +
+   theme_minimal() +
+  labs(
+    title = "US Cities by Distance to Nearest State Border", subtitle = "Cities Farther from Any State Line Are Highlighted",
+    caption = "Data: tigris, rnaturalearth, simplemaps" )
+
+```
+
+In 2–3 sentences:
+
+**(1) how does the pattern differ from 3.2?** The pattern now shows the five cities closest to the state borders. It's no longer int he middle of the United States, but in the Southern part; Texas.
+
+**(2) Which states appear to have the largest interior areas — do any water resources features (large river basins, aquifer extents) correlate with the states where cities can be far from borders?** States like Texas, Colorado, New Mexico, Utah, and Arizona have the largest interior areas. There are large river systems that go through these states, near the cities that are farthest from the borders. Some of those rivers are the Colorado River, the Arkansas River, The Rio Grande River, The Sacramento River, The Brazos River, and the Gila River.
+
+**(3) What would a hydrologist use this distance for?** A hydrologist could use this distance to determine watershed management oversight, account for evaporation calculations to meet quotas of different compacts, and determine areas where most of the water is being used.
+
+#### **3.4 Equidistance Zone: Mexico and Canada**
+
+Identify cities that are **approximately equidistant** from the Mexican and Canadian borders — within ±100 km of equal distance from both.
+
+**Tip**
+
+Create a variable for the absolute difference between the two distances, then use `gghighlight()` to emphasize cities where that difference is less than 100 km. Label the 5 most populous cities in this zone with `ggrepel`.
+
+```{r}
+ggplot() +
+  # CONUS outline
+  geom_sf(data = states, fill = NA, color = "black") +
+  
+  # All cities colored by difference in distance
+  geom_sf(data = cities %>%
+      mutate(diff_km = abs(drop_units(dist_to_mexico - dist_to_canada))),
+    aes(color = diff_km),
+    size = 1) +
+  
+  scale_color_viridis_c(
+    option = "plasma",
+    name = "Distance (km)") +
+  
+  # Highlight cities within ±100 km difference
+  gghighlight::gghighlight(diff_km <= 100) +
+  
+  # Label 5 most populous cities in the equidistant zone
+  ggrepel::geom_label_repel(
+    data = cities %>%
+      mutate(
+        diff_km = abs(drop_units(dist_to_mexico - dist_to_canada)) ) %>%
+      filter(diff_km <= 100) %>%
+      arrange(desc(population)) %>%
+      slice_head(n = 5),
+    aes(geometry = geometry, label = city),
+    stat = "sf_coordinates",
+    size = 3,
+    min.segment.length = 0) +
+  
+  theme_minimal() +
+  labs(
+    title = "Cities Equidistant from Mexico and Canada (±100 km)",
+    caption = "Data: tigris, rnaturalearth, simplemaps" )
+
+```
+
+In 2–3 sentences:
+
+**(1) describe where the equidistant zone runs geographically**
+
+The equidistant zone runs geographically left to right, from the center of California and diagonally down to the upper East Florida coast.
+
+**(2) does it surprise you that this band cuts through the interior of the country where it does?** No it doesn't surprise me after looking where some of the major river systems are. This belt runs roughly between the Missouri and the Arkansas Rivers.
+
+**(3) What does this zone imply about the relative influence of Canadian vs. Mexican climate systems on cities in this corridor?**
+
+This zone may face more climate variability from the the colder moist air from the North and the warmer moist air from the South. This may also influence water availability, which would help explain why those cities are aligned between rivers.
 
 ## Running Code
 
