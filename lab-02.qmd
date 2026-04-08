@@ -9,6 +9,8 @@ format: html
 
 ### Lab Intro
 
+Author: Megan Hoover
+
 This lab connects directly to recent policy discussions about border enforcement and the so-called “100-mile” border zone — for example, shifts in migration policy after the end of the pandemic-era Title 42 expulsions in 2023 have renewed attention on how proximity to the border affects enforcement, resource allocation, and civil liberties (see recent coverage: https://www.reuters.com/world/us/us-ceases-using-title-42-pandemic-order-control-migration-2023-05-11/).
 
 More recent operational discussions involving ICE and border enforcement through 2025–2026 have emphasized how interior and border-zone enforcement strategies depend on distance-to-border metrics; readers can consult summaries on civil-liberties implications (ACLU) or policy analyses that discuss the “100-mile” enforcement footprint for background: https://www.aclu.org/know-your-rights/border-zone, https://www.americanimmigrationcouncil.org/blog/border-patrol-charlotte-atlanta-100-mile-zone/.
