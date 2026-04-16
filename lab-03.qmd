@@ -117,7 +117,10 @@ To achieve this:
   - Since these are point objects, the difference between union/combine is mute
 
 ```{r}
-
+count_union<-counties |> #the dplyr summarise is the union
+  group_by(name) |>
+  summarise()
+count_cen<-st_centroid(count_union)
 ```
 
 ### Step 1.3
@@ -175,7 +178,34 @@ Last, we want to ensure that our surfaces are topologically valid/simple.
 
 
 ```{r}
+#square grid
+sq_grid =st_make_grid(counties, n=c(70)) |>
+  st_sf() |>
+  mutate(id=1:n()) #created identifier from 1: however manycells
 
+#hex grid
+hex_grid= st_make_grid(counties, n=c(70), square = FALSE) |>
+  st_sf() |>
+  mutate(id=1:n())
+
+tm_shape(counties) + tm_polygons (col= "grey") + tm_shape (hex_grid) + tm_polygons (col= "red")
+
+#voronoi
+
+v_grid= st_voronoi(count_union) |>
+  st_cast() |>
+  st_sf() |>
+  mutate(id=1:n())
+
+tm_shape(counties) + tm_polygons (col= "grey") + tm_shape (v_grid) + tm_polygons (col= "red")
+  
+#triangulate
+t_grid = st_triangulate(count_union)|>
+  st_cast() |>
+  st_sf() |>
+  mutate(id= 1:n())
+
+tm_shape(counties) + tm_polygons (col= "grey") + tm_shape (count_union) + tm_polygons (col= "black") + tm_shape(t_grid) + tm_polygons (col= "red")
 ```
 
 ### Step 1.4
