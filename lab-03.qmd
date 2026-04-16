@@ -275,12 +275,14 @@ plot(boundary_simplified, main = "Simplified")
 
 - How many points were you able to remove? What are the consequences of doing this computationally?
 
-```{r}
-npts(c_boundary) |>
-  print()#we had 
+I was able to remove 10715 points. Removing excess points helps to remove data that's not needed and that can slow down your computer. However, if too many points are removed, it may not be a good representation. 
 
-npts(boundary_simplified) |>
-  print()
+```{r}
+mapview::npts(c_boundary) |>
+  print()#we had 11,292
+
+mapview::npts(boundary_simplified) |>
+  print() #577 points
 ```
 
 - Finally, crop **all four grids** to the CONUS boundary—but using different methods:
@@ -288,7 +290,13 @@ npts(boundary_simplified) |>
   - **Hexagon & Square grids** (regular grids): Use `st_filter()` to keep only tiles that touch CONUS. These grids are already regularly aligned; filtering just discards edge tiles without modifying them.
 
 ```{r}
+v_grid <- st_intersection(v_grid, boundary_simplified)
 
+t_grid <- st_intersection(t_grid, boundary_simplified)
+
+sq_grid <- st_filter(sq_grid, boundary_simplified)
+
+hex_grid<- st_filter(hex_grid, boundary_simplified)
 ```
 
 ::: callout-tip
@@ -319,8 +327,7 @@ The form of a function is:
 #| eval: false
 
 name = function(arg1, arg2) {
-  
-  ... code goes here ...
+  ....
   
 }
 ```
@@ -348,7 +355,16 @@ For this function:
       - You will need to paste character stings and variables together.
 
 ```{r}
-
+plot_sf <- function(arg1, arg2) {
+  
+  p <- ggplot() +
+    geom_sf(data = arg1, fill = "white", color = "navy", size = 0.2) +
+    ggtitle(arg2) +
+    theme_void() +
+    labs(caption = paste("Number of features:", nrow(arg1)))
+  
+  return(p)
+  }
 ```
 
 ### Step 1.7
@@ -356,6 +372,15 @@ For this function:
 Use your new function to plot each of your tessellated surfaces and the original county data (5 plots in total):
 
 ```{r}
+plot_sf(counties, "Counties") #number of fefatures in number of rows
+
+plot_sf(v_grid, "Voronoi Tessellation")
+
+plot_sf(t_grid, "Delaunay Triangulation")
+
+plot_sf(sq_grid, "Square Grid")
+
+plot_sf(hex_grid, "Hex Grid")
 ```
 
 # Question 2:
