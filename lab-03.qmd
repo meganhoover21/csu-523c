@@ -117,10 +117,14 @@ To achieve this:
   - Since these are point objects, the difference between union/combine is mute
 
 ```{r}
-count_union<-counties |> #the dplyr summarise is the union
-  group_by(name) |>
-  summarise()
-count_cen<-st_centroid(count_union)
+count_cen<-st_centroid(counties)
+
+# combine ALL points into ONE MULTIPOINT
+count_union <- st_union(count_cen)
+
+plot(count_union) #should be a cloud of dots
+plot(count_cen) #should be dots
+
 ```
 
 ### Step 1.3
@@ -204,7 +208,7 @@ t_grid = st_triangulate(count_union)|>
   st_cast() |>
   st_sf() |>
   mutate(id= 1:n())
-
+#quick visual. looks good!
 tm_shape(counties) + tm_polygons (col= "grey") + tm_shape (count_union) + tm_polygons (col= "black") + tm_shape(t_grid) + tm_polygons (col= "red")
 ```
 
@@ -221,6 +225,7 @@ To do this, we need two different approaches:
 Either way, we'll need a geometry of CONUS to serve as our clipping feature. We can get this by unioning our existing county boundaries.
 
 ```{r, eval = TRUE}
+c_boundary <- st_union(counties) #now one polygon for the boundary.
 
 ```
 
@@ -236,7 +241,9 @@ To achieve this:
 - Choose what percentage of vertices to retain using the `keep` argument and work to find the highest number that provides a shape _you_ are comfortable with for the analysis:
 
 ```{r, eval = TRUE}
+boundary_simplified<- rmapshaper::ms_simplify(c_boundary, keep = 0.05) #want to get the simplest shape that uses less data. Kept 5%
 
+plot(boundary_simplified)
 ```
 
 ::: callout-important
@@ -246,14 +253,14 @@ After simplification, verify the boundary is still valid and covers all dams:
 
 ```{r}
 #| eval: false
-# Check: Is the simplified boundary valid?
+# Check: Is the simplified boundary valid? Yes
 st_is_valid(boundary_simplified)
 
 # Check: Does it still contain all of CONUS?
 st_bbox(boundary_simplified)  # Should cover roughly [-125, 24] to [-66, 49]
 
 # Check: Visual comparison
-plot(boundary_original, main = "Original")
+plot(c_boundary, main = "Original")
 plot(boundary_simplified, main = "Simplified")
 ```
 :::
@@ -269,6 +276,11 @@ plot(boundary_simplified, main = "Simplified")
 - How many points were you able to remove? What are the consequences of doing this computationally?
 
 ```{r}
+npts(c_boundary) |>
+  print()#we had 
+
+npts(boundary_simplified) |>
+  print()
 ```
 
 - Finally, crop **all four grids** to the CONUS boundary—but using different methods:
