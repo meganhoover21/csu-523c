@@ -77,6 +77,8 @@ library(AOI) # county boundaries
 library(gghighlight) # ggplot conditional highlighting
 library(knitr) # table generation
 library(kableExtra) # making tables pretty
+library(tmap)
+library(flextable)
 ```
 
 
@@ -412,12 +414,38 @@ For this function:
   - Return this `data.frame`
   
 ```{r}
-
+sum_tess <- function(arg1, arg2) {
+  
+  area_km2 <- st_area(arg1) |>
+    set_units(km^2) |>
+    drop_units()
+  
+  data.frame(
+    name = arg2,
+    n_features = nrow(arg1),
+    mean_area_km2 = mean(area_km2),
+    sd_area_km2 = sd(area_km2),
+    total_area_km2 = sum(area_km2)
+  )
+}
 ```
 
 ### Step 2.2 
 
 Use your new function to summarize each of your tessellations and the original counties. 
+
+```{r}
+summary_table <- bind_rows(
+  sum_tess(counties, "Counties"),
+  sum_tess(v_grid, "Voronoi"),
+  sum_tess(t_grid, "Delaunay"),
+  sum_tess(sq_grid, "Square Grid"),
+  sum_tess(hex_grid, "Hex Grid")
+)
+
+print(summary_table)
+```
+
 
 ### Step 2.3
 
@@ -425,11 +453,12 @@ Multiple `data.frame` objects can bound row-wise with `bind_rows` into a single 
 
 For example, if your function is called `sum_tess`, the following would bind your summaries of the triangulation and voroni object.
 
+
+I combined this step and 2.2 in the code chunk above.
 ```{r, eval = FALSE}
-bind_rows(
-  sum_tess(triangulate_grid, "triangulation"),
-  sum_tess(voronoi_grid, "voronoi")
-)
+#bind_rows(
+ # sum_tess(triangulate_grid, "triangulation"),
+ # sum_tess(voronoi_grid, "voronoi"))
 ```
 
 ### Step 2.4
@@ -437,14 +466,32 @@ bind_rows(
 Once your 5 summaries are bound (2 tessellations, 2 coverage's, and the raw counties) print the `data.frame` as a nice table using `knitr`/`kableExtra`/`flextable` or your preferred table formatting package.
 
 ```{r, echo = FALSE}
+#more simple
+summary_table |>
+flextable() |>
+  set_caption("Tesselation Summary Statistics") |>
+  autofit()
+
+summary_table |>
+  kable(digits = 2, caption = "Tessellation Summary Statistics") |>
+  kable_styling(full_width = FALSE)
+
 
 ```
 
 ### Step 2.5
 
-Comment on the traits of each tessellation. Be specific about how these traits might impact the results of a point-in-polygon analysis in the contexts of the modifiable areal unit problem and with respect computational requirements.
+Comment on the traits of each tessellation. Be specific about how these traits might impact the results of a point-in-polygon analysis in the contexts of the modifiable areal unit problem and with respect computational requirements:
 
-****
+The `counties` object has a moderate amount of rows/ n features. The mean area of polygon sizes are 2605 km^2, but the SD is much higher meaning that there are many counties that are either bigger or smaller than the mean. This could be due to county boundaries being determined by governments; therefore, they are not regularly shaped and spatial analysis may prove to be inconsistent. Point-in-polygon counts may be misleading, since larger counties will naturally contain more dams simply due to their size.*
+
+The `Voronoi` tessellation has the same number of features as `counties` and a SD that is slightly higher than the mean area, but it has a lower variation in size than `counties`. These polygons are based on proximity to points, so they better represent spatial relationships. However, since their sizes still vary, some bias remains in how dam counts are distributed.*
+
+The `Delaunay` triangulation creates many smaller polygons (6198 features) with a lower average mean area of 1290.37 km^2. This allows for more detailed detection of clustering, since each unit is smaller. However, it also increases computational cost and can introduce noise, since small polygons may contain very few dams. The SD is higher than the mean area, which could be a reason of introduced noise.
+
+The `square and hex grids` both have zero standard deviation, meaning all tiles are the same size. This makes comparisons across space more consistent and reduces size-based bias from MAUP. However, because these grids are placed arbitrarily, they can split real clusters across boundaries.
+
+Overall, tessellations with uniform size (square and hex grids) provide more consistent comparisons, while those with variable sizes (counties, Voronoi, Delaunay) can introduce bias due to differences in polygon area.
 
 # Question 3: Dam Distribution Analysis & Tessellation Selection
 
