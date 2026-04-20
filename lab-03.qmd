@@ -196,7 +196,7 @@ hex_grid= st_make_grid(counties, n=c(70), square = FALSE) |>
   st_sf() |>
   mutate(id=1:n())
 
-tm_shape(counties) + tm_polygons (col= "grey") + tm_shape (hex_grid) + tm_polygons (col= "red")
+#tm_shape(counties) + tm_polygons (col= "grey") + tm_shape (hex_grid) + tm_polygons (col= "red")
 
 #voronoi
 
@@ -205,7 +205,7 @@ v_grid= st_voronoi(count_union) |>
   st_sf() |>
   mutate(id=1:n())
 
-tm_shape(counties) + tm_polygons (col= "grey") + tm_shape (v_grid) + tm_polygons (col= "red")
+#tm_shape(counties) + tm_polygons (col= "grey") + tm_shape (v_grid) + tm_polygons (col= "red")
   
 #triangulate
 t_grid = st_triangulate(count_union)|>
@@ -213,7 +213,7 @@ t_grid = st_triangulate(count_union)|>
   st_sf() |>
   mutate(id= 1:n())
 #quick visual. looks good!
-tm_shape(counties) + tm_polygons (col= "grey") + tm_shape (count_union) + tm_polygons (col= "black") + tm_shape(t_grid) + tm_polygons (col= "red")
+#tm_shape(counties) + tm_polygons (col= "grey") + tm_shape (count_union) + tm_polygons (col= "black") + tm_shape(t_grid) + tm_polygons (col= "red")
 ```
 
 ### Step 1.4
@@ -282,8 +282,8 @@ plot(boundary_simplified, main = "Simplified")
 I was able to remove 10715 points. Removing excess points helps to remove data that's not needed and that can slow down your computer. However, if too many points are removed, it may not be a good representation. 
 
 ```{r}
-mapview::npts(c_boundary) |>
-  print()#we had 11,292
+#mapview::npts(c_boundary) |>
+ # print()#we had 11,292
 
 mapview::npts(boundary_simplified) |>
   print() #577 points
@@ -318,7 +318,7 @@ hex_grid<- st_filter(hex_grid, boundary_simplified)
 
 ### Step 1.6
 
-The last step is to plot your tessellations. We don't want to write out 5 ggplots (or mindlessly copy and paste `r emo::ji("smile")`)
+The last step is to plot your tessellations. We don't want to write out 5 ggplots (or mindlessly copy and paste
 
 Instead, lets make a function that takes an `sf` object as _arg1_ and a character string as _arg2_ and returns a ggplot object showing _arg1_ titled with _arg2_. 
 
@@ -467,12 +467,8 @@ I combined this step and 2.2 in the code chunk above.
 
 Once your 5 summaries are bound (2 tessellations, 2 coverage's, and the raw counties) print the `data.frame` as a nice table using `knitr`/`kableExtra`/`flextable` or your preferred table formatting package.
 
-```{r, echo = FALSE}
-#more simple
-summary_table |>
-flextable() |>
-  set_caption("Tesselation Summary Statistics") |>
-  autofit()
+```{r}
+
 
 summary_table |>
   kable(digits = 2, caption = "Tessellation Summary Statistics") |>
@@ -651,11 +647,7 @@ Apply your plotting function to each of the 5 tessellated surfaces with Point-in
 ```{r}
 
 #verify dams across all have same amt. They don't
-sum(counties_pip$n)
-sum(v_grid_pip$n)
-sum(t_grid_pip$n)
-sum(sq_grid_pip$n)
-sum(hex_grid_pip$n)
+
 plot_pip(counties_pip, "Number of Dams Across Counties")
 
 plot_pip(v_grid_pip, "Voronoi Surface: Number of Dams Across Counties")
@@ -696,7 +688,6 @@ These differences are a clear example of the modifiable areal unit problem (MAUP
 For decision-making, the `hexagonal grid` is the best choice. It provides equal-area units, reducing bias from polygon size, and its geometry produces smoother and more interpretable clustering patterns compared to `square grids`. It also avoids the over-fragmentation seen in `Delaunay triangulation`, which, while detailed, can be computationally expensive and harder to interpret. While `counties` align with administrative boundaries, they are less useful for identifying true spatial clustering. Overall, the`hex grid` is the most effective for supporting dam management decisions.
 
 ```{r}
-
 
 (plot_pip(counties_pip, "Counties") |
   plot_pip(v_grid_pip, "Voronoi") |
@@ -760,8 +751,6 @@ unique(dams2$purposes) %>% length() #574
 To overcome this data structure limitation, we can identify how many dams serve each purpose by splitting the PURPOSES values (`strsplit`) and tabulating the unlisted results as a data.frame. Effectively this is double/triple/quadruple counting dams bases on how many purposes they serve:
 
 ```{r}
-#| echo: false
-#| eval: false
 # create a vector of all characters in your purpose and unlist 
 dam_freq <- strsplit(dams2$purposes, split = "") %>%
   unlist() %>% 
@@ -775,8 +764,6 @@ dam_freq <- strsplit(dams2$purposes, split = "") %>%
 The result of this would indicate: There's a lot of NA's. Aside from that, recreation seems to be the main purpose.
 
 ```{r}
-#| echo: false
-#| eval: false
 
 ggplot() + 
   geom_col(data = dam_freq, aes(x = reorder(lab, -count), y = count, fill = purpose), alpha = .8) + 
@@ -897,7 +884,6 @@ Using your **cropped tessellation from Q1.4** (your recommended grid from Q3, cl
 Aggregate as follows:
 
 ```{r}
-#| eval: false
 # Suggested workflow (write your own implementation):
 # 1) spatial join dams to your cropped tessellation
 # 2) group by tile id and summarize n_dams, mean_year_completed, mean_surface_area
@@ -913,16 +899,13 @@ summarise(
 n_dams =  n(),
 n_dams= ifelse(is.na(n_dams), 0, n_dams),
   mean_year = mean(year_completed, na.rm = TRUE),
-  mean_size = mean(surface_area_acres, na.rm = TRUE)
-) |>
+  mean_size = mean(surface_area_acres, na.rm = TRUE)) |>
 mutate(
   mean_year = ifelse(is.nan(mean_year), NA, mean_year),
-  mean_size = ifelse(is.nan(mean_size), NA, mean_size)
-) |>
-  left_join(hex_grid, by = "id") |> #preserving empty polygons
+  mean_size = ifelse(is.nan(mean_size), NA, mean_size)) |>
+  left_join(hex_grid, by = "id") |> st_as_sf()
+ #preserving empty polygons
 #avoiding dropped tiles (critical for Moran’s I later)
-   st_as_sf()
-
 
 ```
 
@@ -937,8 +920,6 @@ Do you see geographic clustering of old vs. new dams? Large vs. small dams?
 I notice that the majority of dams across the U.S. are from around ~1980. But in UT,AZ, and NY area they are mostly from 1900-1950. A lot of the most recent ones are in the IA, NE, KS area. I am not sure why my code for the size of the dams isn't working, but on my visual it shows that everywhere has a 0 mean size.
 
 ```{r}
-
-
 map_grid_var <- function(data, var, title) {
   
   ggplot(data) +
@@ -975,7 +956,6 @@ This preserves statistical integrity: neighbors' contributions are computed corr
 :::
 
 ```{r}
-#| eval: false
 # Suggested workflow (write your own implementation):
 # 1) build vectors for count, age, and size attributes by tile
 # 2) handle NAs explicitly before matrix multiplication
@@ -1005,7 +985,6 @@ lag_size  <- W %*% x_size
 **Summarize in a table**:
 
 ```{r}
-#| eval: false
 # Create a compact summary table with:
 # - attribute name
 # - correlation with spatial lag
@@ -1229,13 +1208,13 @@ After computing the neighbor matrix, verify it's valid:
 ```{r}
 #| eval: false
 # Check 1: Is the matrix symmetric? (for undirected adjacency)
-all(neighbor_matrix == t(neighbor_matrix))
+#all(neighbor_matrix == t(neighbor_matrix))
 
 # Check 2: Are all rows row-standardized (divide by row sum)?
-rowSums(neighbor_weights)  # Should all be 1 (or 0 for isolated tiles)
+#rowSums(neighbor_weights)  # Should all be 1 (or 0 for isolated tiles)
 
 # Check 3: Are there isolated tiles (no neighbors)?
-sum(rowSums(neighbor_weights) == 0)
+#sum(rowSums(neighbor_weights) == 0)
 
 # If any isolated tiles, document how you'll handle them in spatial lag calculation
 ```
