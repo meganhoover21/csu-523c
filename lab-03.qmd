@@ -687,6 +687,14 @@ Now that you have dam counts across all five tessellation methods, compare the r
 
 Your answer should be **3–4 paragraphs** and grounded in the actual visualizations and patterns you observe from your tessellation comparisons.
 
+The five tessellations produce noticeably different patterns of dam clustering, even though they are based on the same dataset. `Counties` show very uneven patterns, especially in the western United States where large counties appear to contain many dams simply due to their size. In contrast, the `square and hex grids` produce more uniform visual patterns because their tile sizes are consistent (standard deviation near zero in Q2). The `Voronoi and Delaunay` tessellations reveal more localized clustering, particularly because they are based on spatial proximity and, in the case of Delaunay, much smaller polygon sizes (over 6000 features with a mean area of ~1290 km²).
+
+In contrast, the `square and hexagonal grids` divide the same space into equal-sized units, which spreads dam counts across multiple smaller tiles. As a result, areas like Nevada and Arizona appear less concentrated in these tessellations compared to `counties`.However, the `Delaunay tessellation` reveals smaller, localized clusters that are not visible in the county map. This difference is driven by scale: larger units smooth patterns, while smaller units reveal detail. In the southeastern U.S., `square grids` sometimes break up clusters into separate tiles due to their rigid alignment, making patterns appear more fragmented. The `hexagonal grid`, with its equal area and more natural neighbor structure, produces smoother and more continuous clusters in this region.
+
+These differences are a clear example of the modifiable areal unit problem (MAUP), where changing the size and shape of spatial units changes the results of the analysis. From Q2, `counties and Voronoi polygons` have high variability in area (high standard deviation), which can bias results because larger polygons tend to contain more dams. In contrast, `square and hex grids` eliminate this size-based bias but introduce arbitrary boundaries that may split real-world clusters. The slight differences in total dam counts across tessellations also reflect how spatial predicates and boundary simplification affect whether points are included or excluded, especially near edges.
+
+For decision-making, the `hexagonal grid` is the best choice. It provides equal-area units, reducing bias from polygon size, and its geometry produces smoother and more interpretable clustering patterns compared to `square grids`. It also avoids the over-fragmentation seen in `Delaunay triangulation`, which, while detailed, can be computationally expensive and harder to interpret. While `counties` align with administrative boundaries, they are less useful for identifying true spatial clustering. Overall, the`hex grid` is the most effective for supporting dam management decisions.
+
 ```{r}
 
 
@@ -742,7 +750,7 @@ knitr::kable(nid_classifier,
 - A standard summary indicates there are over 400 unique combinations of dam purposes:
 
 ```{r, echo = TRUE, eval = TRUE}
-unique(dams2$PURPOSES) %>% length()
+unique(dams2$purposes) %>% length() #574
 ```
 
 - By storing dam codes as a concatenated string, there is no easy way to identify how many dams serve any one purpose... for example where are the hydro electric dams?
@@ -755,7 +763,7 @@ To overcome this data structure limitation, we can identify how many dams serve 
 #| echo: false
 #| eval: false
 # create a vector of all characters in your purpose and unlist 
-dam_freq <- strsplit(dams2$PURPOSES, split = "") %>%
+dam_freq <- strsplit(dams2$purposes, split = "") %>%
   unlist() %>% 
   table() %>% 
   as.data.frame() %>% 
@@ -764,7 +772,7 @@ dam_freq <- strsplit(dams2$PURPOSES, split = "") %>%
   mutate(lab = paste0(purpose, "\n(", abbr, ")"))
 ```
 
-The result of this would indicate:
+The result of this would indicate: There's a lot of NA's. Aside from that, recreation seems to be the main purpose.
 
 ```{r}
 #| echo: false
@@ -778,6 +786,7 @@ ggplot() +
   theme(axis.text.x = element_text(angle = 45, vjust = .9, hjust = 1)) + 
   theme(legend.position = 'none')
 ```
+
 
 ### Step 4.1
 
@@ -797,8 +806,9 @@ For example:
 #| echo: true
 #| eval: true
 # Find flood control dams in the first 5 records:
-dams2$PURPOSES[1:5]
-grepl("F", dams2$PURPOSES[1:5])
+
+dams2$purposes[1:5]
+grepl("F", dams2$purposes[1:5])
 ```
 
 ****
@@ -808,7 +818,23 @@ For your analysis, choose _at least_ four of the above codes, and describe why y
 Finally, use your `point-in-polygon` function to count each subset across your **cropped tessellation from Q1.4** (e.g., `hexagon_clipped` or `square_clipped`).
 
 ```{r}
+hydro_hex <- dams2 |> filter(grepl("H", purposes))
+hydro_hex<- pip_count(hydro_hex, hex_grid, "id")
 
+irrig_hex <- pip_count(
+  dams2 |> filter(grepl("I", purposes)),
+  hex_grid,
+  "id")
+
+flood_hex <- pip_count(
+  dams2 |> filter(grepl("C", purposes)),
+  hex_grid,
+  "id")
+
+water_hex <- pip_count(
+  dams2 |> filter(grepl("S", purposes)),
+  hex_grid,
+  "id")
 ```
 
 ### Step 4.2
@@ -822,7 +848,16 @@ Finally, use your `point-in-polygon` function to count each subset across your *
 - The result of this exploration is to highlight the areas of the country with the most 
 
 ```{r}
+#adding gghighlight and filter
+plot_pip_highlight <- function(arg1, arg2) {
+  
+  plot_pip(arg1, arg2) +
+    gghighlight(n > mean(arg1$n) + sd(arg1$n))}
 
+plot_pip_highlight(hydro_hex, "Areas with the most Hydroelectric dams") #most in CALI and New York area
+plot_pip_highlight(irrig_hex, "Areas with the most Irrigation dams") #Colorado has the most. CALI, GA,MO/KS has some. Seems to follow river basin pattern?
+plot_pip_highlight(flood_hex, "Areas with the most Flood Control dams") #KS seems to have the most? TX second most.
+plot_pip_highlight(water_hex, "Areas with the most Water Supply dams") #WY,NE, IA, KS area has the most
 ```
 
 ### Step 4.3
