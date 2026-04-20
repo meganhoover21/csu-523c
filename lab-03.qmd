@@ -68,6 +68,7 @@ library(tidyverse) # data wrangling
 library(sf)        # Working with vector data
 library(rmapshaper)# Simplify geometries
 library(units)     # manage your units
+library(janitor) #::clean_names()
 
 # Data
 # remotes::install_github("mikejohnson51/AOI") # get US counties
@@ -79,6 +80,7 @@ library(knitr) # table generation
 library(kableExtra) # making tables pretty
 library(tmap)
 library(flextable)
+library(patchwork)
 ```
 
 
@@ -525,8 +527,8 @@ The NID CSV has messy column names (all caps with spaces). The `janitor::clean_n
 ```{r}
 #| message: false
 # Prefer a local NID CSV named `nation.csv`; otherwise download to that filename
-nid_url <- "https://nid.sec.usace.army.mil/api/nation/csv"
-dir.create("data", showWarnings = FALSE)
+#nid_url <- "https://nid.sec.usace.army.mil/api/nation/csv"
+#dir.create("data", showWarnings = FALSE)
 nid_dest <- "data/nation.csv"
 if (file.exists(nid_dest)) {
   message("Using local NID file: ", nid_dest)
@@ -548,10 +550,11 @@ usa <- AOI::aoi_get(state = "conus") %>%
   st_union() %>% 
   st_transform(5070)
 
-dams2 <- dams %>% 
-  filter(!is.na(latitude)) %>%
-  st_as_sf(coords = c("longitude", "latitude"), crs = 4326) %>% 
-  st_transform(5070) %>% 
+#remove na values in lat and long columns, transform to sf, and transform crs, filter to only us boundary
+dams2<- dams |> filter(!is.na(latitude),
+                      !is.na(longitude)) |>
+  st_as_sf(coords = c("longitude", "latitude"), crs= 4326) |>
+  st_transform(5070) |>
   st_filter(usa)
 ```
 
@@ -576,7 +579,20 @@ The function should make use of spatial and non-spatial joins, sf coercion and `
 :::
   
 ```{r}
-
+pip_count <- function(points, polygons, id_col) {
+  
+  if (st_crs(points) != st_crs(polygons)) {
+    points <- st_transform(points, st_crs(polygons))
+  }
+  
+  counts <- st_join(points, polygons) |>
+    st_drop_geometry() |>
+    count(.data[[id_col]], name = "n")
+  
+  polygons |>
+    left_join(counts, by = setNames(id_col, id_col)) |>
+    mutate(n = ifelse(is.na(n), 0, n))
+}
 ```
 
 ### Step 3.3 
@@ -588,7 +604,11 @@ Apply your point-in-polygon function to each of your five tessellated surfaces w
 - The id column is the name of the id columns you defined.
 
 ```{r}
-
+counties_pip <- pip_count(dams2, counties, "fip_code")
+v_grid_pip   <- pip_count(dams2, v_grid, "id")
+t_grid_pip   <- pip_count(dams2, t_grid, "id")
+sq_grid_pip  <- pip_count(dams2, sq_grid, "id")
+hex_grid_pip <- pip_count(dams2, hex_grid, "id")
 ```
 
 ### Step 3.4
@@ -614,12 +634,39 @@ For this function:
       - You will need to paste character stings and variables together.
       
 ```{r}
-
+plot_pip <- function(arg1, arg2) {
+  
+  ggplot() +
+    geom_sf(data = arg1, aes(fill = n), color = NA) + #colors polygons by number of dams, removes borders (color= NA)
+    scale_fill_viridis_c() +
+    ggtitle(arg2) +
+    theme_void() +
+    labs(caption = paste("Total dams:", sum(arg1$n))) #total dams in that tessellation
+}
 ```
 
 ### Step 3.5
 
 Apply your plotting function to each of the 5 tessellated surfaces with Point-in-Polygon counts:
+```{r}
+
+#verify dams across all have same amt. They don't
+sum(counties_pip$n)
+sum(v_grid_pip$n)
+sum(t_grid_pip$n)
+sum(sq_grid_pip$n)
+sum(hex_grid_pip$n)
+plot_pip(counties_pip, "Number of Dams Across Counties")
+
+plot_pip(v_grid_pip, "Voronoi Surface: Number of Dams Across Counties")
+
+plot_pip(t_grid_pip, "Delaunay Surface: Number of Dams Across Counties")
+
+plot_pip(sq_grid_pip, "Square Grid Surface: Number of Dams Across Counties")
+
+plot_pip(hex_grid_pip, "Hex Grid Surface: Number of Dams Across Counties")
+```
+
 
 ### Step 3.6 
 
@@ -642,6 +689,12 @@ Your answer should be **3–4 paragraphs** and grounded in the actual visualizat
 
 ```{r}
 
+
+(plot_pip(counties_pip, "Counties") |
+  plot_pip(v_grid_pip, "Voronoi") |
+  plot_pip(t_grid_pip, "Delaunay")) /
+( plot_pip(sq_grid_pip, "Square Grid") |
+  plot_pip(hex_grid_pip, "Hex Grid"))
 ```
 
 ---
