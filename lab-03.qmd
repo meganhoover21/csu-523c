@@ -864,6 +864,10 @@ plot_pip_highlight(water_hex, "Areas with the most Water Supply dams") #WY,NE, I
 
 Comment on the geographic distribution of dams you found. Does it make sense? How might the tessellation you chose impact your findings? How does the distribution of dams coincide with other geographic factors such as river systems, climate, ect?
 
+These patterns generally make physical sense because dam placement is strongly controlled by hydrology, topography, and land use. Hydroelectric dams are strongly concentrated in California and parts of New York, which makes sense given the combination of mountainous terrain, and high precipitation in some regions. Irrigation dams are most prominent in Colorado and across the western interior (including California, Georgia, Missouri, and Kansas), which aligns with agricultural water demand and reliance on managed water systems in semi-arid regions. Flood control dams are concentrated in Kansas and Texas, possibly reflecting the need to manage periodic high-intensity rainfall and flood risk in flat, highly variable climate zones. Water supply dams cluster across Wyoming, Nebraska, Iowa, and Kansas, which reflects groundwater dependence and surface storage systems in regions without large natural lakes or consistent precipitation.
+
+Hexagonal grids smooth spatial variation, which can dilute or redistribute clusters across tile edges. This can make some regions (like California or the Great Plains) appear less extreme because their density is averaged across more uniform spatial units. 
+
 **Optional: Connect to Q6** — For purposes you chose in Q4, hypothesize in 1–2 sentences: *"Will [irrigation/hydroelectric] dams show the same LISA hotspots as all dams in Q6, or different patterns? Why?"* After completing Q6, revisit this hypothesis.
 
 # Question 5: Spatial Correlation of Dam Attributes — Introduction to Spatial Regression
@@ -899,6 +903,27 @@ Aggregate as follows:
 # 2) group by tile id and summarize n_dams, mean_year_completed, mean_surface_area
 # 3) join summaries back to geometry and preserve zero-dam tiles
 # 4) inspect distributions before mapping
+
+
+grid_attr <- hex_grid |>
+  st_join(dams2) |>
+  st_drop_geometry() |>
+  group_by(id) |>
+summarise(
+n_dams =  n(),
+n_dams= ifelse(is.na(n_dams), 0, n_dams),
+  mean_year = mean(year_completed, na.rm = TRUE),
+  mean_size = mean(surface_area_acres, na.rm = TRUE)
+) |>
+mutate(
+  mean_year = ifelse(is.nan(mean_year), NA, mean_year),
+  mean_size = ifelse(is.nan(mean_size), NA, mean_size)
+) |>
+  left_join(hex_grid, by = "id") |> #preserving empty polygons
+#avoiding dropped tiles (critical for Moran’s I later)
+   st_as_sf()
+
+
 ```
 
 **Produce visualizations** showing spatial patterns:
@@ -909,8 +934,24 @@ Aggregate as follows:
 
 Do you see geographic clustering of old vs. new dams? Large vs. small dams?
 
+I notice that the majority of dams across the U.S. are from around ~1980. But in UT,AZ, and NY area they are mostly from 1900-1950. A lot of the most recent ones are in the IA, NE, KS area. I am not sure why my code for the size of the dams isn't working, but on my visual it shows that everywhere has a 0 mean size.
+
 ```{r}
 
+
+map_grid_var <- function(data, var, title) {
+  
+  ggplot(data) +
+    geom_sf(aes(fill = .data[[var]]), color = NA) + #dynamically pick columns
+    scale_fill_viridis_c() +
+    theme_void() +
+    labs(title = title)  }
+
+map_grid_var(grid_attr, "n_dams", "Dam Count by Tile")
+
+map_grid_var(grid_attr, "mean_year", "Mean Dam Age by Tile") #majority of dams around ~1980. But in UT,AZ, and NY area they are mostly from 1900-1950. A lot of the most recent ones are in the IA, NE, KS area.
+
+map_grid_var(grid_attr, "mean_size", "Mean Dam Surface Area by Tile")
 ```
 
 ### Step 5.2
@@ -941,6 +982,24 @@ This preserves statistical integrity: neighbors' contributions are computed corr
 # 3) compute spatial lag as W_std %*% attribute
 # 4) correlate each attribute with its lag
 # 5) report values and classify as weak/moderate/strong with your own thresholds
+
+W <- st_touches(hex_grid, sparse = FALSE)
+diag(W) <- 0
+W <- W / rowSums(W)
+W[is.na(W)] <- 0
+
+#create vectors
+x_count <- grid_attr$n_dams
+x_age   <- grid_attr$mean_year
+x_size  <- grid_attr$mean_size
+
+#remove na
+x_age[is.na(x_age)] <- mean(x_age, na.rm = TRUE)
+x_size[is.na(x_size)] <- mean(x_size, na.rm = TRUE)
+
+lag_count <- W %*% x_count
+lag_age   <- W %*% x_age
+lag_size  <- W %*% x_size
 ```
 
 **Summarize in a table**:
@@ -952,11 +1011,18 @@ This preserves statistical integrity: neighbors' contributions are computed corr
 # - correlation with spatial lag
 # - qualitative strength label
 # Then add a 1-2 sentence interpretation below the table.
+
+data.frame(
+  attribute = c("count", "age", "size"),
+  correlation = c(
+    cor(x_count, lag_count),
+    cor(x_age, lag_age),
+    cor(x_size, lag_size)
+  )) 
+
 ```
 
-```{r}
-
-```
+The number of dams is positively correlated with how many other dams are spatially correlated in relation to the number of dams. The age of the dam is somewhat correlated to the age of the surrounding dams. The mean size of dams doesn't appear to be correlated with the size of neighboring dams.
 
 ### Step 5.3
 
@@ -990,8 +1056,32 @@ Returns a numeric vector (not a matrix). Use `[, 1]` to extract it, or use `as.v
 ```
 
 ```{r}
-
+grid_attr |>
+  mutate(
+    x = n_dams,
+    lag_x = W %*% n_dams,
+    z = scale(x)[,1],
+    z_lag = scale(lag_x)[,1],
+    quad = case_when(
+      z > 0 & z_lag > 0 ~ "HH",
+      z < 0 & z_lag < 0 ~ "LL",
+      z > 0 & z_lag < 0 ~ "HL",
+      TRUE ~ "LH"
+    )
+  ) |>
+  ggplot(aes(z, z_lag, color = quad)) +
+  geom_point(alpha = 0.6) +
+  geom_hline(yintercept = 0, linetype = "dashed") +
+  geom_vline(xintercept = 0, linetype = "dashed") +
+  geom_smooth(method = "lm", se = FALSE, color = "black") +
+  theme_minimal() +
+  labs(
+    title = "Moran Scatterplot: Dam Count",
+    x = "Standardized Dam Count",
+    y = "Spatial Lag (Standardized)"
+  )
 ```
+The Moran scatterplot shows a clear positive relationship between dam density and spatial lag values, indicating spatial clustering of infrastructure. Most observations fall in the HH and LL quadrants, with relatively few spatial outliers, suggesting that dam distribution is spatially structured rather than random.
 
 ### Step 5.4
 
