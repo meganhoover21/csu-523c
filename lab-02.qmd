@@ -139,9 +139,9 @@ In all cases, since we want distance to a **border** (a line), we must cast our 
 
 **The geometry type determines the answer**
 
--   `POLYGON` / `MULTIPOLYGON` → distance to the interior is **0** (you’re inside the area)
+- `POLYGON` / `MULTIPOLYGON` → distance to the interior is **0** (you’re inside the area)
 
--   `MULTILINESTRING` → distance to the **boundary line** — what we actually want
+- `MULTILINESTRING` → distance to the **boundary line** — what we actually want
 
 ```         
 # Wrong: distance to a polygon st_distance(city_point, state_polygon)   # returns 0 if city is inside  # Right: distance to the border st_distance(city_point, state_polygon |> st_cast("MULTILINESTRING"))
@@ -218,15 +218,17 @@ cities |>
 
 Think carefully about why the answers for 2.1 and 2.2 differ. The city farthest from the national border might be close to a state line. The city farthest from any state line must be far from all internal AND external borders.
 
--   **2.1 (National border)**: distance only to the outer boundary (coastline + international borders).
+- **2.1 (National border)**: distance only to the outer boundary (coastline + international borders).
 
-    -    A city deep inside a state can be far from the national border but close to an internal state line.
+  - A city deep inside a state can be far from the national border but close to an internal state line.
 
 <!-- -->
 
--    **2.2 (State borders)** → distance to any state line, including internal boundaries.
+- **2.2 (State borders)** → distance to any state line, including internal boundaries.
 
-    -    The farthest city from all state lines must be roughly in the center of a large state.
+```         
+-    The farthest city from all state lines must be roughly in the center of a large state.
+```
 
 #### **2.3 Distance to Mexico (km)**
 
@@ -295,11 +297,11 @@ Now visualize the distance data you computed. You will use `ggplot2` for all map
 
 Create a base reference map showing:
 
--   North America (US, Canada, Mexico) as filled grey polygons
+- North America (US, Canada, Mexico) as filled grey polygons
 
--   CONUS state boundaries as dashed lines
+- CONUS state boundaries as dashed lines
 
--   The 10 largest US cities by population as labeled points
+- The 10 largest US cities by population as labeled points
 
 **Tip**
 
@@ -489,13 +491,13 @@ The American Civil Liberties Union has documented and challenged this policy. Th
 
 Using your `dist_to_border` column, calculate:
 
--   How many cities fall within the 100-mile zone?
+- How many cities fall within the 100-mile zone?
 
--   What is the total population living in cities within the zone?
+- What is the total population living in cities within the zone?
 
--   What percentage of the total US city population does this represent?
+- What percentage of the total US city population does this represent?
 
--   Does your result match the ACLU’s published estimate?
+- Does your result match the ACLU’s published estimate?
 
 Present your findings as a formatted **flextable**.
 
@@ -523,9 +525,9 @@ autofit()
 
 Create a map highlighting all cities within the 100-mile zone using `gghighlight`.
 
--   Color cities by distance to the border using a gradient from `"orange"` to `"darkred"`
+- Color cities by distance to the border using a gradient from `"orange"` to `"darkred"`
 
--   Label the **10 most populous** cities in the zone
+- Label the **10 most populous** cities in the zone
 
 ```{r}
 ggplot() +
@@ -571,9 +573,7 @@ Repeat the map from 4.2, but instead of the 10 most populous overall, label the 
 
 **Tip**
 
-filter(cities, as.numeric(dist_to_border) \< 160) \|\>
-group_by(state_name) \|\>
-slice_max(population, n = 1)
+filter(cities, as.numeric(dist_to_border) \< 160) \|\> group_by(state_name) \|\> slice_max(population, n = 1)
 
 ```{r}
 ggplot() +
@@ -649,31 +649,31 @@ This hands-on exercise ties the distance calculations and mapping skills from Q1
 
 Learning objectives:
 
--   Practice turning `sf` results into interactive HTML widgets with `leaflet`.
+- Practice turning `sf` results into interactive HTML widgets with `leaflet`.
 
--   Build informative popups that show computed distances and metadata.
+- Build informative popups that show computed distances and metadata.
 
--   Implement layer groups and a legend so users can toggle overlays.
+- Implement layer groups and a legend so users can toggle overlays.
 
--   Consider performance and projection issues when publishing web maps.
+- Consider performance and projection issues when publishing web maps.
 
 #### **Deliverables**
 
 Create an interactive `leaflet` map that includes:
 
--   **Base layers**: CONUS state boundaries and at least one provider tile basemap (e.g., CartoDB, OpenStreetMap)
+- **Base layers**: CONUS state boundaries and at least one provider tile basemap (e.g., CartoDB, OpenStreetMap)
 
--   **Data layers** (toggleable via `addLayersControl`):
+- **Data layers** (toggleable via `addLayersControl`):
 
-    -   All cities colored by distance to the national border (use a color palette like `colorNumeric("viridis")`; see `?leaflet::colorNumeric`)
+  - All cities colored by distance to the national border (use a color palette like `colorNumeric("viridis")`; see `?leaflet::colorNumeric`)
 
-    -   Cities in the equidistance zone (±100 km Mexico/Canada difference) highlighted separately
+  - Cities in the equidistance zone (±100 km Mexico/Canada difference) highlighted separately
 
-    -   Cities in the 100-mile border zone highlighted separately
+  - Cities in the 100-mile border zone highlighted separately
 
--   **Popups**: When you click a city marker, display relevant information: city name, state, population, and distances to borders
+- **Popups**: When you click a city marker, display relevant information: city name, state, population, and distances to borders
 
--   **Legend**: Show what the color scale represents
+- **Legend**: Show what the color scale represents
 
 **Tip**
 
