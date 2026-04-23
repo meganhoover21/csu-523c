@@ -269,10 +269,37 @@ normalized difference water index   | MNDWI  |  $$ \frac{Green - SWIR1}{Green + 
 - Plot the new stack, using the following palette (`colorRampPalette(c("blue", "white", "red"))(256)`)
 
 ```{r}
+#the 5 indices
+ndvi  <- (landsat_crop$nir08 - landsat_crop$red) / (landsat_crop$nir08 + landsat_crop$red) # Cells less than 0 = water
+ndwi <- (landsat_crop$green - landsat_crop$nir08) / (landsat_crop$green + landsat_crop$nir08) #Cells greater than 0 = water
+mndwi <- (landsat_crop$green - landsat_crop$swir16) / (landsat_crop$green + landsat_crop$swir16) #Cells greater than 0 = water
+wri <- (landsat_crop$green + landsat_crop$red) / (landsat_crop$nir08 + landsat_crop$swir16)# Cells greater than 1 = water
+swi <- ( 1 /(sqrt(landsat_crop$blue - landsat_crop$swir16))) #Cells less than 5 = water
+
+#combines multiple spatraster layers into one multi layer
+idx <- c(ndvi, ndwi, mndwi, wri, swi)
+#name the layers
+idx <- setNames(idx, c("NDVI","NDWI","MNDWI","WRI","SWI"))
+
+#plot all 5 layers:
+plot(idx, col = colorRampPalette(c("blue","white","red"))(256))
+
 
 ```
 
 > Describe the 5 images. How are they simular and where do they deviate?
+
+All of these images distinguish between water,vegetation, and urban areas/roads. However, what they consider to be water, roads, and vegetation does differ.
+
+NDVI shows the river as dark blue, but also shows a water background in the vegetation plots. clustered forested areas along urban spaces, roads, and waterways are red, and roads and buildings are white.
+
+NDWI shows water as red and like NDVI, the vegetation plots are considered wet. Roads are harder to view, because of the lighter blue color.
+
+MDNWI shows wet areas in red and the areas are much sharper between wet and dry. It does show that the vegetation plots are not considered wet.
+
+WRI also has a sharper contrast between wet (red) and dry (blue). It does show varying levels of dryness in the vegetation and roads are also covered in blue.
+
+SWI only outlines what is considered wet in blue. It looks as if the image was cropped to only show wet shapes.
 
 ### Step 2: Raster Thresholding
 
@@ -283,7 +310,12 @@ For this, we will use the `app` function and apply a custom formula for each cal
 An example of this, applied to the ndvi raster is shown below:
 
 ```{r}
-
+# Apply thresholds specific to each index
+ndvi_flood  <- app(ndvi,  function(x) ifelse(x < 0, 1, 0))# NDVI < 0 = water
+ndwi_flood <- app( ndwi, function(x) ifelse(x > 0 , 1, 0)) #ndwi > 0 =water
+mndwi_flood <- app(mndwi, function(x) ifelse(x > 0 , 1, 0))
+wri_flooded <- app(wri, function(x) ifelse(x > 1, 1, 0)) #wri > 1 = flooded
+swi_flooded <- app(swi, function(x) ifelse(x < 5, 1, 0)) #swi >5 = flooded
 ```
 
 The `app` function applies a function to each cell of the raster, and the `ifelse` function is used to set the values based on the threshold.
@@ -296,12 +328,22 @@ For all 5 index rasters do the following apply the appropriate threshold and the
  - Plot the stack so that floods are blue, and background is white.
 
 ```{r}
+#stack binary rasters
+flood_stack <- c(ndvi_flood, ndwi_flood, mndwi_flood, wri_flooded, swi_flooded)
+#name index
+flood_stack <- setNames(flood_stack, c("NDVI","NDWI","MNDWI","WRI","SWI"))
+#Converts missing values -> non-flood (0)
+flood_stack <- app(flood_stack, function(x) ifelse(is.na(x), 0, x))
 
+#plot
+plot(flood_stack, col = c("white","blue")) #white no flood (0), blue is flood (1)
 ```
 
 ### Step 3: 
 
-Describe the differences and similarities between the different maps
+Describe the differences and similarities between the different maps:
+
+They all share the same general shape for things considered wet (river and surroundings ponds/ water bodies). There are some that include slightly more spots/areas as wet and others that don't though. The MNDWI appears to have a larger wet buffer around the river and things considered wet than the other indices.
 
 # Question 4:
 
@@ -316,7 +358,7 @@ For this lab we will use a simple k-means algorithm to group raster cells with s
 Anytime we want to be able to produce a consistent/reproducible result from a random process in R we need to set a seed. Do so using `set.seed`
 
 ```{r}
-
+set.seed(123)
 ```
 
 ### Step 2:
@@ -326,14 +368,17 @@ Anytime we want to be able to produce a consistent/reproducible result from a ra
  
 > What do the diminsions of the extracted values tell you about how the data was extracted?
 
-```{r}
+There is 12192 rows, considered pixels, and 6 columns representing the bands. These dimensions tell us that the raster was converted into a matrix.
 
+```{r}
+vals <- values(landsat_crop) #values() converts raster to matrix
+dim(vals)
 ```
 
   - Remove NA values from your extracted data with  `na.omit` for safety
   
 ```{r}
-
+vals <- na.omit(vals) #k means can't handle na values
 ```
 
 ### Step 3:
@@ -341,26 +386,38 @@ Anytime we want to be able to produce a consistent/reproducible result from a ra
   - Use the kmeans clustering algorithm from the `stats` package to cluster the extracted raster data to a specified number of clusters `k` (centers). Start with 12.
   
   - Once the `kmeans` algorithm runs, the output will be a list of components. One of these is `cluster` which provides a vector of integers from (1:`k`) indicating the cluster to which each row was allocated.
+
+```{r}
+km <- kmeans(vals, centers = 12) #Groups pixels into 12 clusters based on spectral similarity. no longer spatial
+
+km$cluster
+```
+
   
 ### Step 4:
 
   - Create a new raster object by copying one of the original bands. For example:
   
 ```{r, echo = TRUE, eval = FALSE}
+km_raster <- landsat_crop[[1]]
 
 ```
   
   - Set the values of the copied raster to the cluster vector from the output kmeans object. For example:
 
 ```{r, echo = TRUE, eval = FALSE}
-
-```
-
-```{r}
-
+values(km_raster) <- NA
+values(km_raster)[!is.na(values(landsat_crop[[1]]))] <- km$cluster
 ```
 
 Try a few different clusters (k) to see how the map changes.
+
+```{r}
+km <- kmeans(vals, centers = 8)
+km$cluster
+km <- kmeans(vals, centers = 15) #more detailed clusters
+```
+
 
 ### Step 5:
 
@@ -377,7 +434,19 @@ Great! You now have a categorical raster with categories 1:k. The issue is we do
   - Finally add this to add to your flood raster stack with `c()` and make a new plot!
   
 ```{r}
+tab <- table(values(mndwi_flood), values(km_raster))
+tab # Columns = cluster IDs (1–k), Rows = flood (0,1), Values = number of pixels
 
+#find cluster with most flooded pixels. row 2 (1) is flooded
+flood_class <- which.max(tab[2,]) #cluster best representing water used below
+#extract flood from kmean. All pixels in km_raster are classified as flooded/not
+km_flood <- app(km_raster, function(x) ifelse(x == flood_class, 1, 0))
+
+#add to existing flood stack:
+flood_stack <- c(flood_stack, km_flood)
+
+#plot
+plot(flood_stack, col = c("white","blue"))
 ```
 
 # Question 5
