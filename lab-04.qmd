@@ -458,7 +458,7 @@ Awesome! You have now created a flood raster using 6 different methods. Our last
  > Print these values
  
 ```{r}
-
+global(flood_stack, "sum") * prod(res(landsat_crop)) #counts flooded pixels and multiplies by the total flooded area per layer
 ```
  
  - Second we can visualize the uncertainty in our classifications by summing the entire stack using `app`. The higher the count in each pixel, the more certain we can be about its flooded state. For example, if a cell has a value of 6, it indicates that every method identified the cell as flooded, if it has a value of 2 then we know that two of the methods identified the cell as flooded.
@@ -466,14 +466,23 @@ Awesome! You have now created a flood raster using 6 different methods. Our last
  > Plot your flood map using the blues9 color palette
  
 ```{r}
+#add all flood maps together pixel by pixel
+uncertainty <- app(flood_stack, sum) #0 means uncertain, 6 means 100% certain, all methods identified as flooded
 
+plot(uncertainty, col = hcl.colors(9, "Blues")) #gradient
 ```
  
  - Third once you have a summed raster layer, copy it as a new layer, and set all 0 values to NA. Then map the raster with `mapview`. Zoom and pan around the interactive map noting that a pixel level is displayed in the upper right hand corner.
  
-> Why are some of the cell values not an even number?
+> Why are some of the cell values not an even number? 
+
+The summed raster is made of the index methods, which contributed either a 0 or a 1. Any number between 1-6 is possible, depending on how many methods classified the pixel as flooded.
 
 ```{r}
+uncertainty <- app(flood_stack, function(x) sum(x, na.rm = TRUE))
+ # 0 is now na
+
+mapview(uncertainty)
 ```
 
 
@@ -494,7 +503,7 @@ Check out this drone footage taken during the flooding in Palo, Iowa.
 In particular we see a bit of residential flooding at minute 2:17 (screen shot below)
 
 <center>
-![](../img/palo-flood.png)
+![](palo-flood-warning.png)
 </center>
 
 Our goal is to see if our flood classifications were able to capture this event.
@@ -510,37 +519,18 @@ Use `mapview` to generate a slippy map of the Palo, Iowa `bbox.` Find the locati
   
 > How many of the maps captured the flooding at that location? 
 
+5 of the maps captured the flooding at that location from above.
+
 ```{r}
+#create a point
+pt <- st_sfc(st_point(c(-91.78188, 42.07287)), crs = 4326)
+#transform to raster
+pt <- st_transform(pt, crs(flood_stack))
+terra::extract(flood_stack, vect(pt))
+ 
 
 ```
 
-****
-
-# Rubric
-
-- [ ] **Question 1: Data Acquisition** (20)
-- [ ] **Question 2: Image Creation** (30)
-- [ ] **Question 3: Thresholding** (40)
-- [ ] **Question 4: Classification** (30)
-- [ ] **Question 5: Summary** (20)
-- [ ] **Extra Credit: Pixel Evaluation** (20)
-- [ ] **Well Structured and appealing Qmd deployed as web page** (10)
-
-**Total:** 150 points (170 total)
-
-# Submission
-
-You will submit a URL to your web page deployed with GitHub pages.
-
-To do this:
-
- - Knit your lab document
- - Stage/commit/push your files
- - If you followed the naming conventions in the "Set Up" of lab 2, your lab 5 link will be available at: 
- 
-`https://USERNAME.github.io/csu-523c/lab-04.html`
-
-Submit this URL in the appropriate Canvas dropbox. Also take a moment to update your personal webpage with this link and some bullet points of what you learned. While not graded as part of this lab, it will be your final!
 
 
 
