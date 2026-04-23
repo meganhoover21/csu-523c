@@ -126,7 +126,6 @@ knitr::include_graphics("lsat8-bands.jpg")
 For this lab, lets just get the first 6 bands. Assets are extracted from a STAC item by the asset name (look at the print statements of the stac_query). Let's define a vector of the assets we want:
 
 ```{r}
-#| eval: false
 # Bands 1-6
 bands <- c('coastal', 'blue', 'green', 'red', 'nir08', 'swir16')
 ```
@@ -138,7 +137,7 @@ assets_download(
   items      = search,
   asset_names = bands,
   output_dir = "data",
-  overwrite  = FALSE)
+  overwrite  = TRUE) #change to false when not rendering
 ```
 
 
@@ -398,21 +397,21 @@ km$cluster
 
   - Create a new raster object by copying one of the original bands. For example:
   
-```{r, echo = TRUE, eval = FALSE}
+```{r, echo = TRUE}
 km_raster <- landsat_crop[[1]]
 
 ```
   
   - Set the values of the copied raster to the cluster vector from the output kmeans object. For example:
 
-```{r, echo = TRUE, eval = FALSE}
+```{r, echo = TRUE}
 values(km_raster) <- NA
 values(km_raster)[!is.na(values(landsat_crop[[1]]))] <- km$cluster
 ```
 
 Try a few different clusters (k) to see how the map changes.
 
-```{r}
+```{r, eval= FALSE}
 km <- kmeans(vals, centers = 8)
 km$cluster
 km <- kmeans(vals, centers = 15) #more detailed clusters
