@@ -16,6 +16,8 @@ format:
 library(tidyverse)
 library(tidymodels)
 library(baguette)
+library(visdat)
+library(skimr)
 ```
 
 # Introduction
@@ -734,18 +736,96 @@ This question asks you to apply the full toolkit from Week 5 and Week 6: EDA, re
 
 ## Data prep & EDA (30) — *Week 5-1*
 
- - [ ] Set a seed for reproducibility
- - [ ] Use `skimr::skim()` and/or `visdat::vis_dat()` on your working data. Describe — in 3–4 sentences — what this tells you about missingness, variable types, and distributions. Use this to justify decisions you make in the recipe below.
- - [ ] Visualize the distribution of `q_mean` (and your chosen predictors) — note anything skewed, bimodal, or bounded that will drive a `step_*` choice.
+ - [x ] Set a seed for reproducibility
+ - [ x] Use `skimr::skim()` and/or `visdat::vis_dat()` on your working data. Describe — in 3–4 sentences — what this tells you about missingness, variable types, and distributions. Use this to justify decisions you make in the recipe below.
+ - [x ] Visualize the distribution of `q_mean` (and your chosen predictors) — note anything skewed, bimodal, or bounded that will drive a `step_*` choice.
  - [ ] *Optional but encouraged*: run `ape::Moran.I()` on each numeric predictor (Week 5-2 slide *"Which predictors carry geography?"*) to see which features carry spatial structure. High Moran's I = candidate geographic proxy to revisit in the VIP step.
- - [ ] Create an initial split with 75% used for training and 25% for testing. Consider whether stratification (e.g., by `aridity` quartile or hydrologic class) is appropriate and **explain your choice**.
- - [ ] Extract your training and testing sets
+ - [x ] Create an initial split with 75% used for training and 25% for testing. Consider whether stratification (e.g., by `aridity` quartile or hydrologic class) is appropriate and **explain your choice**.
+ - [ x] Extract your training and testing sets
+ 
+```{r}
+#set seed
+set.seed(123)
+skim(camels) #671 rows, 59 cols
+vis_dat(camels)
+
+camels|>
+  select(where(is.numeric)) |>
+  vis_cor()
+```
+
+vis_dat shows that in the camels dataset there are many na values in the geol_2nd_class, some within the q_mean, a few in the geol_porosity and root depths, and one across several other end columns. Skimr shows that many variables are skewed right or left, and only some look equally distributed. Numeric and character variables are what make up the dataframe. These patterns suggest the need for transformations (e.g., log scaling) to reduce skewness, as well as careful handling of missing values and potential encoding of categorical predictors in the modeling workflow.
+ 
+visualize skewed data:These patterns indicate non-normality in key predictors and the response variable, supporting the use of log transformations to reduce skewness and improve model performance.
+```{r}
+#skewed right should use step_log()
+ggplot(camels, aes(x = q_mean)) +
+  geom_histogram(bins = 30) +
+  labs(title = "Distribution of Mean Streamflow (q_mean)")
+
+# Looks bimodal but mosly skewed right
+ggplot(camels, aes(x = p_mean)) +
+  geom_histogram(bins = 30) +
+  labs(title = "Distribution of Precipitation (p_mean)")
+
+#skewed right
+ggplot(camels, aes(x = aridity)) +
+  geom_histogram(bins = 30) +
+  labs(title = "Distribution of Aridity")
+
+#skewed right
+ggplot(camels, aes(x = sand_frac)) +
+  geom_histogram(bins = 30) +
+  labs(title = "Distribution of sand")
+
+#skewed right
+ggplot(camels, aes(x = slope_mean)) +
+  geom_histogram(bins = 30) +
+  labs(title = "Distribution of sand")
+
+```
+
+Initial split and extraction:
+```{r}
+set.seed(123)
+camels_split <- initial_split(camels, prop = 0.75)
+camels_train <- training(camels_split)
+camels_test  <- testing(camels_split)
+```
+
+Stratification was not used because logQmean is continuous and does not have clear class groupings. While stratification could be approximated by binning variables such as aridity into quartiles, this introduces arbitrary thresholds.
 
 ## Recipe (30) — *Week 5-1*
 
- - [ ] Define a formula you want to use to predict `logQmean`
- - [ ] In 5–7 sentences, justify your predictor choice. Consult the downloaded PDF; ground **each** recipe step (log, normalize, interact, naomit, impute, ...) in what the EDA above showed.
- - [ ] Build a recipe that handles those predictors. Your recipe should contain **at least three** `step_*` calls beyond the formula, and each should be there for a reason you can name.
+ - [x ] Define a formula you want to use to predict `logQmean`
+ - [ x] In 5–7 sentences, justify your predictor choice. Consult the downloaded PDF; ground **each** recipe step (log, normalize, interact, naomit, impute, ...) in what the EDA above showed.
+ - [ x] Build a recipe that handles those predictors. Your recipe should contain **at least three** `step_*` calls beyond the formula, and each should be there for a reason you can name.
+ 
+ Define formula for predicting `logQmean`
+```{r}
+logQmean ~ aridity + p_mean + elev_mean + slope_mean + sand_frac
+```
+ 
+**Justify choice:**
+The selected predictors represent key physical controls on streamflow. Precipitation (p_mean) provides water input, while aridity reflects the balance between water supply and evapotranspiration, making them main drivers of runoff generation. Elevation (elev_mean) influences temperature and precipitation patterns, while slope (slope_mean) affects runoff velocity and drainage. Sand fraction (sand_frac) was included because it controls soil permeability and infiltration, influencing how water is stored or runoff.
+
+Exploratory data analysis showed that q_mean, p_mean, and aridity are strongly right-skewed, supporting the use of log transformations to improve linearity and reduce the influence of extreme values. Missing values were observed across several predictors, justifying the removal of incomplete cases to ensure consistent model fitting. Because predictors are measured on different scales (e.g., precipitation vs. slope), normalization is applied to ensure fair contribution across models. Finally, an interaction between aridity and precipitation is included to capture their coupled influence on streamflow, as suggested by the nonlinear patterns observed in the EDA.
+
+Build Recipe:
+```{r}
+rec <- recipe(
+  logQmean ~ aridity + p_mean + elev_mean + slope_mean + sand_frac,
+  data = camels_train) %>%
+  # Address right-skewed predictors observed in EDA
+  step_log(aridity, p_mean, offset = 1) %>%
+  # Capture interaction between climate variables
+  step_interact(terms = ~ aridity:p_mean) %>%
+  # Remove rows with missing values (identified in vis_dat)
+  step_naomit(all_predictors(), all_outcomes()) %>%
+  # Standardize predictors (different units/scales)
+  step_normalize(all_predictors())
+```
+
 
 ## Define 3 models (30) — *Week 6-1*
 
