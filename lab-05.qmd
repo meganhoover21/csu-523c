@@ -125,9 +125,14 @@ We can download the documentation PDF which provides descriptions for the variou
 
 ```{r}
 #| eval: false
-download.file('https://zenodo.org/records/15529996/files/camels_attributes_v2.0.pdf?download=1',
+attributes<- download.file('https://zenodo.org/records/15529996/files/camels_attributes_v2.0.pdf?download=1',
               '../data/camels_attributes_v2.0.pdf',
               mode = 'wb')
+
+#download.file(
+ # 'https://zenodo.org/records/15529996/files/camels_attributes_v2.0.pdf?download=1',
+ # 'data/camels_attributes_v2.0.pdf',
+ # mode = 'wb')
 ```
 
 ## Getting Basin characteristics
@@ -222,6 +227,8 @@ camels <- map(remote_files, read_delim, show_col_types = FALSE) |>
 
 - [ ] Make sure all data and the PDF are downloaded into you data directory
 - [ ] From the documentation PDF, report what `zero_q_freq` represents
+
+`zero_q_freq` represents frequency of days with Q = 0 mm/day
 
 ## Exploratory Data Analysis
 
@@ -369,7 +376,7 @@ camels <- camels |>
   mutate(logQmean = log(q_mean))
 
 # Generate the split
-camels_split <- initial_split(camels, prop = 0.8)
+camels_split <- initial_split(camels, prop = 0.8) #80% for training
 camels_train <- training(camels_split)
 camels_test  <- testing(camels_split)
 
@@ -409,6 +416,12 @@ summary(lm_base)
 
 # Sanity Interaction term from recipe ... these should be equal!!
 summary(lm(logQmean ~ aridity + p_mean + aridity_x_p_mean, data = baked_data))
+#Same coefficients, Same R² (0.7697),Same residuals
+
+#what it means?
+#interaction (+0.10)= rainfall’s effect slightly depends on aridity
+#p_mean (+1.48) → more rainfall → higher flow
+#aridity (-0.88) → higher aridity → lower flow
 ```
 
 ## Where things get a little messy...
@@ -425,8 +438,8 @@ The `broom` package provides a convenient way to extract model predictions and r
 
 ```{r}
 #| error: true
-nrow(camels_test)
-nrow(camels_train)
+nrow(camels_test) #135
+nrow(camels_train) #536
 broom::augment(lm_base, data = camels_test)
 ```
 
