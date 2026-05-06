@@ -15,6 +15,7 @@ format:
 #| warning: false
 library(tidyverse)
 library(tidymodels)
+library(baguette)
 ```
 
 # Introduction
@@ -523,6 +524,8 @@ summary(extract_fit_engine(lm_wf))$coefficients
 
 Lets ensure we replicated the results from the lm_base model. How do they look to you?
 
+They are the same!
+
 ```{r}
 # From the base implementation
 summary(lm_base)$coefficients
@@ -535,7 +538,7 @@ Now that `lm_wf` is a workflow, data is not embedded in the model, we can use au
 ```{r}
 #
 lm_data <- augment(lm_wf, new_data = camels_test)
-dim(lm_data)
+dim(lm_data) #135 x 62
 ```
 
 ## Model Evaluation: statistical and visual
@@ -559,7 +562,7 @@ ggplot(lm_data, aes(x = logQmean, y = .pred, colour = aridity)) +
 The real power of this approach is that we can easily switch out the models/recipes and see how it performs. Here, we are going to instead use a random forest model to predict mean streamflow. We define a random forest model using the `rand_forest` function, set the engine to `ranger`, and the mode to `regression`. We then add the recipe, fit the model, and evaluate the skill.
 
 ```{r}
-library(baguette)
+#library(baguette)
 rf_model <- rand_forest() %>%
   set_engine("ranger", importance = "impurity") %>%
   set_mode("regression")
@@ -579,7 +582,7 @@ rf_wf <- workflow() %>%
 
 ```{r}
 rf_data <- augment(rf_wf, new_data = camels_test)
-dim(rf_data)
+dim(rf_data) #135 x 61
 ```
 
 ## Model Evaluation: statistical and visual
@@ -608,7 +611,7 @@ That said, we still have some repetition — and, more importantly, we are eyeba
 wf <- workflow_set(list(rec), list(lm_model, rf_model)) %>%
   workflow_map('fit_resamples', resamples = camels_cv) 
 
-autoplot(wf)
+autoplot(wf) #rand_forest has slightly higher rsq and lower rmse
 
 rank_results(wf, rank_metric = "rsq", select_best = TRUE)
 ```
@@ -666,11 +669,42 @@ That's the **minimum** end-to-end loop. Q4 asks you to do the full version: swap
 
 Extend the `workflow_set` above (which already contains the linear model and the random forest) by adding two more models from the Week 6-1 zoo:
 
- - [ ] Build an `xgboost` (engine) regression (mode) model using `boost_tree`
- - [ ] Build a neural network model using the `nnet` engine from the `baguette` package using the `bag_mlp` function
- - [ ] Add both to the workflow set and refit against the resamples
- - [ ] Compare all four (linear, random forest, xgboost, neural network) with `autoplot()` and `rank_results()`
+ - [ x] Build an `xgboost` (engine) regression (mode) model using `boost_tree`
+ - [x ] Build a neural network model using the `nnet` engine from the `baguette` package using the `bag_mlp` function
+ - [x ] Add both to the workflow set and refit against the resamples
+ - [x ] Compare all four (linear, random forest, xgboost, neural network) with `autoplot()` and `rank_results()`
  - [ ] Which of the four would you move forward with? Justify the pick in 2–3 sentences.
+ 
+Although performance differences are relatively small across models, the neural network consistently achieved the highest R² and lowest RMSE, suggesting slightly better generalization. This improvement is likely due to its flexibility in capturing nonlinear relationships between predictors and streamflow. Therefore, it is the most appropriate model to carry forward.
+ 
+ xgboost model
+```{r}
+#defining model
+xgb_model <- boost_tree() %>%
+  set_engine("xgboost") %>%
+  set_mode("regression") #bc predicting streamflow
+```
+ 
+neural network model
+```{r}
+nn_model <- bag_mlp() %>%
+  set_engine("nnet") %>%
+  set_mode("regression")
+```
+ 
+
+added to previous workflow, refit against samples, and comparing all four models
+```{r}
+wf <- workflow_set(
+  list(rec),
+  list(lm = lm_model, rf = rf_model, xgb = xgb_model, nn = nn_model)) %>%
+  workflow_map('fit_resamples', resamples = camels_cv)
+
+autoplot(wf)
+
+rank_results(wf, rank_metric = "rsq", select_best = TRUE)
+```
+
 
 # Bridge to Q4: what the lectures cover
 
@@ -755,8 +789,8 @@ Use the canonical tidymodels closing move (Week 6-1, *The final fit!*):
 
 # Rubric
 
- - [ ] **Q1**:  Download data (15 pts)
- - [ ] **Q2**:  Make 2 maps (20 pts)
+ - [ x] **Q1**:  Download data (15 pts)
+ - [ x] **Q2**:  Make 2 maps (20 pts)
  - [ ] **Q3**:  Add xgboost + neural network to the workflow set (40 pts)
  - [ ] **Q4a**: Data prep & EDA (30 pts)
  - [ ] **Q4b**: Recipe with justification (30 pts)
