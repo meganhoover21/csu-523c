@@ -18,6 +18,9 @@ library(tidymodels)
 library(baguette)
 library(visdat)
 library(skimr)
+library(sf)
+library(spatialsample)
+library(workflowsets)
 ```
 
 # Introduction
@@ -756,7 +759,7 @@ camels|>
 
 vis_dat shows that in the camels dataset there are many na values in the geol_2nd_class, some within the q_mean, a few in the geol_porosity and root depths, and one across several other end columns. Skimr shows that many variables are skewed right or left, and only some look equally distributed. Numeric and character variables are what make up the dataframe. These patterns suggest the need for transformations (e.g., log scaling) to reduce skewness, as well as careful handling of missing values and potential encoding of categorical predictors in the modeling workflow.
  
-visualize skewed data:These patterns indicate non-normality in key predictors and the response variable, supporting the use of log transformations to reduce skewness and improve model performance.
+visualize skewed data: These patterns indicate non-normality in key predictors and the response variable, supporting the use of log transformations to reduce skewness and improve model performance.
 ```{r}
 #skewed right should use step_log()
 ggplot(camels, aes(x = q_mean)) +
@@ -809,7 +812,7 @@ logQmean ~ aridity + p_mean + elev_mean + slope_mean + sand_frac
 **Justify choice:**
 The selected predictors represent key physical controls on streamflow. Precipitation (p_mean) provides water input, while aridity reflects the balance between water supply and evapotranspiration, making them main drivers of runoff generation. Elevation (elev_mean) influences temperature and precipitation patterns, while slope (slope_mean) affects runoff velocity and drainage. Sand fraction (sand_frac) was included because it controls soil permeability and infiltration, influencing how water is stored or runoff.
 
-Exploratory data analysis showed that q_mean, p_mean, and aridity are strongly right-skewed, supporting the use of log transformations to improve linearity and reduce the influence of extreme values. Missing values were observed across several predictors, justifying the removal of incomplete cases to ensure consistent model fitting. Because predictors are measured on different scales (e.g., precipitation vs. slope), normalization is applied to ensure fair contribution across models. Finally, an interaction between aridity and precipitation is included to capture their coupled influence on streamflow, as suggested by the nonlinear patterns observed in the EDA.
+Exploratory data analysis showed that q_mean, p_mean, sand_frac, slope_mean, and aridity are strongly right-skewed, supporting the use of log transformations to improve linearity and reduce the influence of extreme values. Missing values were observed across several predictors, justifying the removal of incomplete cases to ensure consistent model fitting. Because predictors are measured on different scales (e.g., precipitation vs. slope), normalization is applied to ensure fair contribution across models. Finally, an interaction between aridity and precipitation is included to capture their coupled influence on streamflow, as suggested by the nonlinear patterns observed in the EDA.
 
 Build Recipe:
 ```{r}
@@ -817,7 +820,7 @@ rec <- recipe(
   logQmean ~ aridity + p_mean + elev_mean + slope_mean + sand_frac,
   data = camels_train) %>%
   # Address right-skewed predictors observed in EDA
-  step_log(aridity, p_mean, offset = 1) %>%
+  step_log(aridity, p_mean, slope_mean, sand_fracoffset = 1) %>%
   # Capture interaction between climate variables
   step_interact(terms = ~ aridity:p_mean) %>%
   # Remove rows with missing values (identified in vis_dat)
@@ -829,9 +832,36 @@ rec <- recipe(
 
 ## Define 3 models (30) — *Week 6-1*
 
- - [ ] Define a random forest model using the `rand_forest` function (engine `ranger`, mode `regression`)
+ - [x ] Define a random forest model using the `rand_forest` function (engine `ranger`, mode `regression`)
+```{r}
+#random forest model
+rf_model2 <- rand_forest() %>%
+  set_engine("ranger") %>%
+  set_mode("regression")
+```
+
+
  - [ ] Define two other models of your choice. The Week 6-1 zoo (`linear_reg`, `boost_tree`, `svm_rbf`, `svm_poly`, `mlp`, `bag_mlp`, `decision_tree`) is a good menu — the comparison table in that deck summarizes strengths and weaknesses.
- - [ ] For each model, briefly note (one sentence) why it's a reasonable candidate for this regression problem — what kind of structure does it capture?
+```{r}
+#support vectore machine model
+svm_model <- svm_rbf() %>%
+  set_engine("kernlab") %>%
+  set_mode("regression")
+
+#neural network
+nn_model <- bag_mlp() %>%
+  set_engine("nnet") %>%
+  set_mode("regression")
+```
+ 
+ - [x ] For each model, briefly note (one sentence) why it's a reasonable candidate for this regression problem — what kind of structure does it capture?
+ 
+Random forests are appropriate for this problem because they can capture nonlinear relationships and interactions between watershed characteristics and streamflow without requiring strict assumptions about variable distributions.
+
+A radial basis function support vector machine is appropriate because it can model smooth nonlinear relationships between environmental predictors and streamflow while remaining robust to complex feature interactions.
+
+Neural networks are useful for this regression problem because they can model highly complex and nonlinear relationships between climate, topography, soils, and streamflow response. We also saw how well they did in above model comparisons.
+ 
 
 ## Workflow set — compare with *honest* CV (35) — *Week 5-2*
 
@@ -871,9 +901,9 @@ Use the canonical tidymodels closing move (Week 6-1, *The final fit!*):
 
  - [ x] **Q1**:  Download data (15 pts)
  - [ x] **Q2**:  Make 2 maps (20 pts)
- - [ ] **Q3**:  Add xgboost + neural network to the workflow set (40 pts)
- - [ ] **Q4a**: Data prep & EDA (30 pts)
- - [ ] **Q4b**: Recipe with justification (30 pts)
+ - [ x] **Q3**:  Add xgboost + neural network to the workflow set (40 pts)
+ - [x ] **Q4a**: Data prep & EDA (30 pts)
+ - [x ] **Q4b**: Recipe with justification (30 pts)
  - [ ] **Q4c**: Define 3 models (30 pts)
  - [ ] **Q4d**: Workflow set + spatial CV comparison (35 pts)
  - [ ] **Q4e**: Tuning (named grid, ≥ 2 hyperparameters, autoplot) (25 pts)
