@@ -21,6 +21,7 @@ library(skimr)
 library(sf)
 library(spatialsample)
 library(workflowsets)
+library(kernlab)
 ```
 
 # Introduction
@@ -820,7 +821,7 @@ rec <- recipe(
   logQmean ~ aridity + p_mean + elev_mean + slope_mean + sand_frac,
   data = camels_train) %>%
   # Address right-skewed predictors observed in EDA
-  step_log(aridity, p_mean, slope_mean, sand_fracoffset = 1) %>%
+  step_log(aridity, p_mean, slope_mean, sand_frac, offset = 1) %>%
   # Capture interaction between climate variables
   step_interact(terms = ~ aridity:p_mean) %>%
   # Remove rows with missing values (identified in vis_dat)
@@ -867,34 +868,282 @@ Neural networks are useful for this regression problem because they can model hi
 
 With your preprocessing steps and models defined, build a `workflow_set` and compare the models across resamples. Because CAMELS basins are spatially distributed, a random `vfold_cv` can over-state performance if your model leans on geographic proximity — the Week 5-2 deck walks through this carefully, including when the gap is real and when it isn't.
 
- - [ ] Build a 10-fold `vfold_cv` **and** a `spatialsample::spatial_block_cv()` (or `spatial_clustering_cv()`) on the training data. You will need to `st_as_sf()` the training data using `gauge_lon`/`gauge_lat` (Week 5-2, *Applying this to your data*).
- - [ ] Fit your workflow set over **both** resampling schemes with `workflow_map("fit_resamples", ...)`
- - [ ] Use `autoplot()` and `rank_results()` to compare the models under each scheme
- - [ ] Describe the gap (5–7 sentences): which model wins, how much does performance drop when you move from random to spatial CV, and which number do you trust as your generalization estimate? What does the spread of per-fold metrics tell you about *where* your model struggles? Recall from lecture that a **small** gap is a signal that your predictors carry real transferable signal — not a failed diagnostic.
+ - [ x] Build a 10-fold `vfold_cv` **and** a `spatialsample::spatial_block_cv()` (or `spatial_clustering_cv()`) on the training data. You will need to `st_as_sf()` the training data using `gauge_lon`/`gauge_lat` (Week 5-2, *Applying this to your data*).
+```{r}
+#random cv estimates model performance when observations are randomly mixed across folds.
+cv_random <- vfold_cv(camels_train, v = 10)
+
+#training data to sf.converts the basin coordinates into a spatial object so folds can be separated geographically rather than randomly.
+camels_train_sf <- st_as_sf(
+  camels_train,
+  coords = c("gauge_lon", "gauge_lat"),
+  crs = 4326)
+
+#spatial block cv reduces spatial leakage by ensuring geographically nearby basins are grouped together within folds.
+cv_spatial <- spatial_block_cv(
+  camels_train_sf,
+  v = 10)
+
+```
+ 
+ - [ x] Fit your workflow set over **both** resampling schemes with `workflow_map("fit_resamples", ...)`
+```{r}
+wf <- workflow_set(
+  preproc = list(rec = rec),
+  models = list(
+    rf = rf_model2,
+    svm = svm_model,
+    nn = nn_model))
+
+#fit over random cv. code based off lecture
+wf_random <- wf %>%
+  workflow_map(
+    "fit_resamples",
+    resamples = cv_random,
+    metrics = metric_set(rmse, rsq))
+
+# fit over spatial cv
+wf_spatial <- wf %>%
+  workflow_map(
+    "fit_resamples",
+    resamples = cv_spatial,
+    metrics = metric_set(rmse, rsq))
+```
+ 
+ 
+ - [ x] Use `autoplot()` and `rank_results()` to compare the models under each scheme
+ 
+Random CV:
+```{r}
+#bag_mlp had highest rsq (avg= 92.75),rand_forest lowest at avg= 91.5.
+#bag_mlp had lowest rmse ~ avg 0.340 and svm_rbf highest at ~ avg 0.359
+autoplot(wf_random)
+
+#neural network did best, rf did worst
+rank_results(
+  wf_random,
+  rank_metric = "rsq",
+  select_best = TRUE)
+```
+ 
+Spatial CV:
+```{r}
+#bag_mlp does the best, rand_forest is 2nd, and svm_rbf is worst
+autoplot(wf_spatial)
+
+#neural netwprk is best, rf is 2nd and, svm is worst
+rank_results(
+  wf_spatial,
+  rank_metric = "rsq",
+  select_best = TRUE)
+```
+ 
+ 
+ - [ x] Describe the gap (5–7 sentences): which model wins, how much does performance drop when you move from random to spatial CV, and which number do you trust as your generalization estimate? What does the spread of per-fold metrics tell you about *where* your model struggles? Recall from lecture that a **small** gap is a signal that your predictors carry real transferable signal — not a failed diagnostic.
+ 
+The neural network (bag_mlp) performed best under both random and spatial cross-validation, with the highest average R² and lowest RMSE values across both resampling schemes. Under random CV, the neural network achieved an R² of about 0.927 and an RMSE of 0.340, while under spatial CV the R² decreased to about 0.883 and RMSE increased to 0.375. This performance drop was expected because spatial cross-validation reduces spatial leakage by separating geographically nearby basins into different folds, creating a more realistic test of model transferability. The random forest and SVM models showed similar declines in performance, though both remained reasonably strong predictors overall. The spatial CV estimates are more trustworthy as measures of true generalization because they better represent prediction in unseen geographic regions rather than nearby basins with similar environmental characteristics. The relatively moderate drop in R² (~0.04) suggests that the predictors contain meaningful transferable hydrologic information rather than relying primarily on geographic proximity. The spread in per-fold metrics, particularly the larger standard errors under spatial CV, indicates that model performance varies across regions and that some watersheds are more difficult to predict due to differing climate, topography, or hydrologic characteristics not fully captured by the training data.
 
 ## Tune the best model (25) — *Week 6-1*
 
- - [ ] Tag **at least two** hyperparameters with `tune()` in your chosen model specification
- - [ ] Build a named grid (e.g. `grid_space_filling()`, `grid_regular()`) — do not just pass an integer to `tune_grid()`. Justify your grid choice in one sentence.
- - [ ] Run `tune_grid()` against your **spatial** resamples with `control_grid(save_pred = TRUE)`
- - [ ] Show the tuning landscape with `autoplot()` and identify the best combination with `show_best()` / `select_best()`
- - [ ] In 2–3 sentences, describe which hyperparameters mattered most and what you learned about the model's sensitivity
+ - [ x] Tag **at least two** hyperparameters with `tune()` in your chosen model specification
+ 
+Neural Network model
+```{r}
+nn_tune <- bag_mlp(
+  hidden_units = tune(),
+  penalty = tune()) %>%
+  set_engine("nnet") %>%
+  set_mode("regression")
+
+wf_nn <- workflow() %>%
+  add_recipe(rec) %>%
+  add_model(nn_tune)
+```
+
+ 
+ - [ x] Build a named grid (e.g. `grid_space_filling()`, `grid_regular()`) — do not just pass an integer to `tune_grid()`. Justify your grid choice in one sentence.
+ 
+```{r}
+nn_grid <- grid_regular(
+  hidden_units(range = c(1, 10)),
+  penalty(range = c(-4, -1)),
+  levels = 5)
+```
+ 
+A regular grid was used to evaluate combinations of hidden layer size and regularization strength across a broad but interpretable parameter space.
+
+ - [ x] Run `tune_grid()` against your **spatial** resamples with `control_grid(save_pred = TRUE)`
+ 
+```{r}
+nn_tuned <- tune_grid(
+  wf_nn,
+  resamples = cv_spatial,
+  grid = nn_grid,
+  metrics = metric_set(rmse, rsq),
+  control = control_grid(save_pred = TRUE))
+```
+ 
+ - [x ] Show the tuning landscape with `autoplot()` and identify the best combination with `show_best()` / `select_best()`
+ 
+```{r}
+autoplot(nn_tuned)
+
+show_best(nn_tuned, metric = "rsq")
+
+select_best(nn_tuned, metric = "rsq")
+```
+ 
+ - [x ] In 2–3 sentences, describe which hyperparameters mattered most and what you learned about the model's sensitivity
+ 
+The tuning results showed that both the number of hidden units and the penalty parameter influenced model performance, though the model was somewhat more sensitive to hidden layer size. Networks with 5–7 hidden units consistently produced the highest R² values, suggesting that moderate model complexity captured the nonlinear hydrologic relationships best. Smaller penalty values also performed better, indicating that only light regularization was needed and that overly strong penalties reduced the model’s ability to learn important predictor relationships.
 
 ## Variable importance (25) — *Week 5-2*
 
  - [ ] Produce a `vip::vip()` plot for your tuned model (pattern: `extract_fit_parsnip() |> vip()`)
- - [ ] Interpret the top predictors (4–6 sentences). Cross-reference against the predictor Moran's I you computed in EDA — are any of the top VIP features *also* highly spatially autocorrelated? If so, they could be acting as **geographic proxies** — discuss whether the importance reflects *mechanism* or *location* (Week 5-2, Part 4).
- - [ ] If the model you chose cannot provide VIP, instead discuss the interpretability trade-off you accepted and how you would diagnose the same question (permutation importance via `vip::vi_permute()`, partial dependence, etc.).
+ 
+```{r}
+# permutation importance object
+#nn_vi <- vip::vi_permute(
+#  object = extract_fit_parsnip(final_nn_fit)$fit,
+  
+ # feature_names = c(
+  #  "aridity",
+   # "p_mean",
+    #"elev_mean",
+    #"slope_mean",
+    #"sand_frac",
+    #"aridity_x_p_mean"
+  #),
+  
+  #train = bake(prep(rec), new_data = camels_train),
+  
+  #target = "logQmean",
+  
+  #metric = "rsq",
+  
+  #pred_wrapper = function(object, newdata) {
+   # predict(object, new_data = newdata)
+  #}
+#)
+
+# variable importance plot
+#vip::vip(nn_vi)
+
+# prep and bake recipe
+rec_prep <- prep(rec)
+
+train_baked <- bake(rec_prep, new_data = camels_train)
+
+# fit finalized workflow
+best_nn <- select_best(nn_tuned, metric = "rsq")
+
+final_nn_wf <- finalize_workflow(
+  wf_nn,
+  best_nn)
+
+final_nn_fit <- fit(
+  final_nn_wf,
+  data = camels_train)
+
+# permutation importance
+nn_vi <- vip::vi_permute(
+  
+  object = extract_fit_parsnip(final_nn_fit)$fit,
+  
+  feature_names = c(
+    "aridity",
+    "p_mean",
+    "elev_mean",
+    "slope_mean",
+    "sand_frac",
+    "aridity_x_p_mean"),
+  
+  train = train_baked,
+  
+  target = "logQmean",
+  
+  metric = "rsq",
+  
+  pred_wrapper = function(object, newdata) {
+     predict(
+      object,
+      new_data = newdata
+    )$.pred})
+
+# plot variable importance
+#vip::vip(nn_vi)
+```
+ 
+ - [ x] Interpret the top predictors (4–6 sentences). Cross-reference against the predictor Moran's I you computed in EDA — are any of the top VIP features *also* highly spatially autocorrelated? If so, they could be acting as **geographic proxies** — discuss whether the importance reflects *mechanism* or *location* (Week 5-2, Part 4).
+ 
+The permutation importance results show that precipitation (p_mean) and aridity were by far the most influential predictors in the neural network model, with importance scores of approximately 0.56 and 0.46 respectively. This is hydrologically reasonable because streamflow is strongly controlled by water input and the balance between precipitation and evaporative demand. Slope also contributed moderately to predictions, suggesting that watershed topography influences runoff generation and drainage efficiency, while elevation, sand fraction, and the interaction term had comparatively smaller effects. Several of the most important predictors, particularly precipitation and aridity, are also likely to exhibit relatively high spatial autocorrelation because climate patterns vary systematically across geographic regions of the United States. This means some of their predictive power may partially reflect geographic structure in the dataset, acting as geographic proxies in addition to representing real hydrologic mechanisms. However, because the spatial cross-validation performance only declined moderately relative to random cross-validation, the results suggest that these predictors contain meaningful transferable environmental signal rather than relying entirely on location.
+
+ - [x ] If the model you chose cannot provide VIP, instead discuss the interpretability trade-off you accepted and how you would diagnose the same question (permutation importance via `vip::vi_permute()`, partial dependence, etc.).
+ 
+The neural network model does not provide built-in variable importance measures in the same way as models such as random forests, which represents an interpretability trade-off accepted in exchange for improved predictive flexibility and performance. To address this limitation, permutation importance using vip::vi_permute() was applied to evaluate how model performance changed when each predictor was shuffled. Additional interpretability approaches that could further diagnose predictor influence include partial dependence plots or accumulated local effects plots to better understand nonlinear relationships and interactions learned by the neural network.
 
 ## Final fit & evaluate (25) — *Week 6-1*
 
 Use the canonical tidymodels closing move (Week 6-1, *The final fit!*):
 
- - [ ] `finalize_workflow()` your tuned workflow with the best hyperparameters
+ - [x ] `finalize_workflow()` your tuned workflow with the best hyperparameters
+```{r}
+# finalize workflow with best tuning parameters
+best_nn <- select_best(nn_tuned, metric = "rsq")
+
+final_nn_wf <- finalize_workflow(
+  wf_nn,
+  best_nn)
+```
+ 
  - [ ] Run `last_fit()` against your original `initial_split()` object — this trains on the full training set and evaluates on the held-out test set in one call
+```{r}
+# fit on full training set and evaluate on held-out test set
+final_fit <- last_fit(
+  final_nn_wf,
+  split = camels_split)
+```
+ 
  - [ ] Use `collect_metrics()` and `collect_predictions()` to report final test-set performance
- - [ ] Create a plot of observed vs predicted `logQmean` on the **test set** with clear title, axis labels, and a compelling color scale (e.g., colored by aridity or region). Include a 1:1 reference line.
- - [ ] In 3–5 sentences, describe what you think of the results — including how the test-set metrics compare to your spatial-CV estimate, where the model under- or over-predicts, and what you'd investigate next.
+```{r}
+# final test metrics
+collect_metrics(final_fit)
+
+# test-set predictions
+final_preds <- collect_predictions(final_fit)
+
+# extract finalized fitted workflow
+final_model <- extract_workflow(final_fit)
+
+# augment test data with predictions
+final_preds <- augment(
+  final_model,
+  new_data = camels_test)
+```
+ 
+ - [ x] Create a plot of observed vs predicted `logQmean` on the **test set** with clear title, axis labels, and a compelling color scale (e.g., colored by aridity or region). Include a 1:1 reference line.
+ 
+```{r}
+ggplot(
+  final_preds,
+  aes(
+    x = logQmean,
+    y = .pred,
+    color = aridity)) +
+  geom_point(size = 2, alpha = 0.8) +
+  geom_abline(linetype = 2, linewidth = 1) +
+  scale_color_viridis_c() +
+  labs(
+    title = "Final Neural Network Model: Observed vs Predicted Streamflow",
+    x = "Observed logQmean",
+    y = "Predicted logQmean",
+    color = "Aridity" ) +
+  theme_linedraw()
+```
+ 
+ - [x ] In 3–5 sentences, describe what you think of the results — including how the test-set metrics compare to your spatial-CV estimate, where the model under- or over-predicts, and what you'd investigate next.
+ 
+The finalized neural network model performed well on the held-out test set, with performance remaining similar to the spatial cross-validation estimates. Predictions generally followed the 1:1 line, indicating strong agreement between observed and predicted streamflow values. The model tended to under predict some lower flow basins, while predictions for higher flow basins were more closely aligned with the 1:1 line and occasionally slightly over predicted. This pattern suggests the model captured major hydrologic gradients well but had more difficulty distinguishing subtle variation among low-flow watersheds. Future improvements could include incorporating additional watershed characteristics or regional predictors to better represent variability in low streamflow basins.
 
 
 # Rubric
@@ -904,12 +1153,12 @@ Use the canonical tidymodels closing move (Week 6-1, *The final fit!*):
  - [ x] **Q3**:  Add xgboost + neural network to the workflow set (40 pts)
  - [x ] **Q4a**: Data prep & EDA (30 pts)
  - [x ] **Q4b**: Recipe with justification (30 pts)
- - [ ] **Q4c**: Define 3 models (30 pts)
- - [ ] **Q4d**: Workflow set + spatial CV comparison (35 pts)
- - [ ] **Q4e**: Tuning (named grid, ≥ 2 hyperparameters, autoplot) (25 pts)
- - [ ] **Q4f**: VIP interpretation with geographic-proxy lens (25 pts)
- - [ ] **Q4g**: `last_fit()` evaluation & plot (25 pts)
- - [ ] **Well-structured, compelling Qmd deployed as web page** (25 pts)
+ - [ x] **Q4c**: Define 3 models (30 pts)
+ - [ x] **Q4d**: Workflow set + spatial CV comparison (35 pts)
+ - [ x] **Q4e**: Tuning (named grid, ≥ 2 hyperparameters, autoplot) (25 pts)
+ - [x ] **Q4f**: VIP interpretation with geographic-proxy lens (25 pts)
+ - [ x] **Q4g**: `last_fit()` evaluation & plot (25 pts)
+ - [x ] **Well-structured, compelling Qmd deployed as web page** (25 pts)
 
 **Total: 300 points** (Q4 = 200 pts / 67%)
 
