@@ -34,6 +34,7 @@ library(dataRetrieval)
 library(climateR)
 library(terra)
 library(exactextractr)
+library(earth)
 
 library(tidymodels)
 library(tsibble)
@@ -265,6 +266,8 @@ Snow/ snow melt and the agriculture season drive the seasonal component in flow 
 
 - Are there any spikes in the **remainder** that correspond to anomalous years you can identify?
 
+Yes, there are spikes that correspond with anmomalous years in 2014, 2015, 2016, 2021, and 2023. 
+
 ---
 
 ## Modeltime Prediction
@@ -310,12 +313,14 @@ testing  <- testing(splits)
 
 Choose at least three models — one ARIMA and one Prophet are required. Store model specifications in a list:
 
+The selected were chosen due to the non-linear seasonal trends, peaks, and non-linear cliamte responses.
+
 ```{r}
 #| eval: false
 #| echo: false
 mods <- list(
   # Classical seasonal ARIMA — relies on stationarity (check your tests above)
-  arima_reg() |> set_engine("auto_arima"),
+ # arima_reg() |> set_engine("auto_arima"),
 
   # ARIMA + XGBoost residual boosting — picks up nonlinear climate relationships
   arima_boost() |> set_engine("auto_arima_xgboost"),
@@ -324,10 +329,10 @@ mods <- list(
   prophet_reg() |> set_engine("prophet"),
 
   # Prophet + XGBoost — as above, but boosts on residuals
-  prophet_boost() |> set_engine("prophet_xgboost"),
+ # prophet_boost() |> set_engine("prophet_xgboost"),
 
   # Exponential smoothing — strong baseline for multiplicative seasonal data
-  exp_smoothing() |> set_engine("ets"),
+ # exp_smoothing() |> set_engine("ets"),
 
   # MARS — nonparametric spline model, useful for nonlinear climate response
   mars(mode = "regression") |> set_engine("earth")
