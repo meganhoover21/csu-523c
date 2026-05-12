@@ -197,13 +197,17 @@ gg_season(pf, y = Flow) +
   theme_minimal()
 ```
 
-Describe what you see. How are "seasons" defined in these plots? Is the seasonal shape consistent across years, or does it change? What physical process drives the May–June peak?
+**Describe what you see. How are "seasons" defined in these plots? Is the seasonal shape consistent across years, or does it change? What physical process drives the May–June peak?**
+
+Seasons are defined by months in this plot, along with how much flow is occurring at those times. The seasonal shape is consistent across the winter and fall months, but starts to change across spring and summer months. The May-June peak flow is primarily driven by snow melt at higher altitudes. 
 
 ## 4. Stationarity and Autocorrelation
 
 Two diagnostics that directly inform ARIMA model selection:
 
 **Lag plot** — plots Flow against its own lagged values. Strong linear patterns = high autocorrelation (ARIMA has something to work with). A diffuse cloud = no memory. Use `log1p(Flow)` — on the raw scale, peak months compress all other observations into the corner and hide the structure.
+
+This has weak linear patterns and is more cloud-like in structure.
 
 ```{r}
 #| eval: false
@@ -216,7 +220,7 @@ pf |>
   theme_minimal()
 ```
 
-**Stationarity tests** — ARIMA requires a stationary series (constant mean and variance). Test formally before fitting:
+**Stationarity tests** — ARIMA requires a stationary series (constant mean and variance). Stationary means that the statistical properties don't change over time (mean, variance). Test formally before fitting:
 
 ```{r}
 #| eval: false
@@ -225,13 +229,15 @@ pf |>
 log_flow_vec <- log1p(pf$Flow)
 
 # ADF: H0 = non-stationary; p < 0.05 rejects non-stationarity → series IS stationary
-adf.test(log_flow_vec)
+adf.test(log_flow_vec) #pvalue= .01 we reject the null hypothesis that the log flow is non-stationary
 
 # KPSS: H0 = stationary; p < 0.05 rejects stationarity → series is NOT stationary
-kpss.test(log_flow_vec)
+kpss.test(log_flow_vec) #pvalue=.04 we reject the null hypothesis that the log flow is stationary
 ```
 
 What do the tests tell you? If the series is non-stationary, ARIMA will need `d ≥ 1` (differencing). Does the lag plot support the same conclusion?
+
+We reject the null hypothesis, that the flow is non-stationary (ADF), although it looks to be non-stationary. However, the KPSS test shows that that the flow is barely non-stationary (pvalue=.04), so we cannot reject the null hypothesis that it is stationary.
 
 ## 5. Decomposition
 
@@ -250,7 +256,13 @@ autoplot(decomp)
 Describe what you see:
 
 - What does the **trend** tell you about long-term changes in Poudre flow? Is there evidence of a decline consistent with climate change or upstream demand?
+
+Compared to 2013, the flow has been declining over the years However, May-June flow remains high.
+
 - What drives the **seasonal** component? (Hint: snowmelt, irrigation withdrawals, reservoir releases)
+
+Snow/ snow melt and the agriculture season drive the seasonal component in flow rates.
+
 - Are there any spikes in the **remainder** that correspond to anomalous years you can identify?
 
 ---
