@@ -25,10 +25,13 @@ This mirrors the Lees Ferry forecasting example from lecture — same `dataRetri
 library(tidyverse)
 library(plotly)
 library(remotes) #allows package install elsewhere
-#remotes::install_github("mikejohnson51/climateR") #install climateR from Mike
+
+#install climateR from Mike, forcing it
+#options(install.packages.compile.from.source = "never")
+#remotes::install_github("mikejohnson51/climateR", upgrade = "never", force = TRUE)
 
 library(dataRetrieval)
-#library(climateR)
+library(climateR)
 library(terra)
 library(exactextractr)
 
