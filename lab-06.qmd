@@ -266,7 +266,7 @@ Snow/ snow melt and the agriculture season drive the seasonal component in flow 
 
 - Are there any spikes in the **remainder** that correspond to anomalous years you can identify?
 
-Yes, there are spikes that correspond with anmomalous years in 2014, 2015, 2016, 2021, and 2023. 
+Yes, there are spikes that correspond with anomomalous years in 2014, 2015, 2016, 2021, and 2023. 
 
 ---
 
@@ -320,19 +320,19 @@ The selected were chosen due to the non-linear seasonal trends, peaks, and non-l
 #| echo: false
 mods <- list(
   # Classical seasonal ARIMA — relies on stationarity (check your tests above)
- # arima_reg() |> set_engine("auto_arima"),
+ arima_reg() |> set_engine("auto_arima"),
 
-  # ARIMA + XGBoost residual boosting — picks up nonlinear climate relationships
+   #ARIMA + XGBoost residual boosting — picks up nonlinear climate relationships
   arima_boost() |> set_engine("auto_arima_xgboost"),
 
   # Prophet — handles trend breaks, missing data, and multiple seasonalities
   prophet_reg() |> set_engine("prophet"),
 
   # Prophet + XGBoost — as above, but boosts on residuals
- # prophet_boost() |> set_engine("prophet_xgboost"),
+  prophet_boost() |> set_engine("prophet_xgboost"),
 
   # Exponential smoothing — strong baseline for multiplicative seasonal data
- # exp_smoothing() |> set_engine("ets"),
+ exp_smoothing() |> set_engine("ets"),
 
   # MARS — nonparametric spline model, useful for nonlinear climate response
   mars(mode = "regression") |> set_engine("earth")
@@ -368,9 +368,17 @@ modeltime_accuracy(calibration_table) |>
 Describe what you see. Use these benchmarks to interpret the numbers:
 
 - **MASE < 1** — the model beats a naïve seasonal forecast (last year's same month)
+
+All three models are below 1, and are able to forecast well with low error. However, EARTh had the lowest MASE at 0.45. This suggests that the river has a meaningful relationship with climate/ reoccuring seasonal behavior.
+
 - **MAPE** — intuitive % error, but inflated in low-flow months when Flow ≈ 0
+
+For the Poudre, winter baseflow months may have relatively low discharge compared to peak runoff. Even modest absolute errors during low-flow periods can produce large percentage errors. These MAPE values are probably somewhat exaggerated relative to actual performance.The EARTH model again performs best, with predictions averaging roughly 13% off observed flow.
+
 - **RMSE** — penalizes large errors heavily; compare to mean test-period flow for context
 - Do boosted models (ARIMA-boost, Prophet-boost) outperform their base versions? If so, the nonlinear climate signal is worth capturing.
+
+The ARIMA-boost version improved slightly in MAE and MASE, butRMSE worsened substantially (0.720 vs 0.684), R² decreased, and MAPE worsened; it produced mixed results. Similarly, Prophet-boost performed worse than standard Prophet across most metrics, with the highest RMSE (0.802) and MAPE (19.4%) among all models. These results suggest that adding boosted residual corrections did not meaningfully improve predictive skill and may have introduced additional noise or over fitting.
 
 ### Test Set Forecast
 
