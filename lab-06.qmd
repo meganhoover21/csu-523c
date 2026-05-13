@@ -180,7 +180,7 @@ Before fitting any model, inspect the seasonal structure using two complementary
 
 ```{r}
 #| echo: false
- #| message: false
+#| message: false
 #| warning: false
 gg_subseries(pf, y = Flow) +
   labs(title = "Monthly Flow Patterns — Poudre at Mouth",
@@ -229,7 +229,7 @@ pf |>
 
 ```{r}
 #| echo: false
-#|message: false
+#| message: false
 #| warning: false
 # Test on log_flow — that's what ARIMA will actually model
 log_flow_vec <- log1p(pf$Flow)
