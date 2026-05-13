@@ -192,8 +192,9 @@ gg_subseries(pf, y = Flow) +
 
 ```{r}
 #| echo: false
-#|  message: false
+#| message: false
 #| warning: false
+
 gg_season(pf, y = Flow) +
   labs(title = "Seasonal Shape by Year",
        y = "Flow (cfs)", x = "Month") +
@@ -228,7 +229,7 @@ pf |>
 
 ```{r}
 #| echo: false
-#|  message: false
+#|message: false
 #| warning: false
 # Test on log_flow — that's what ARIMA will actually model
 log_flow_vec <- log1p(pf$Flow)
