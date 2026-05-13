@@ -272,6 +272,11 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <section id="convert-to-tsibble" class="level2">
 <h2 class="anchored" data-anchor-id="convert-to-tsibble">1. Convert to tsibble</h2>
 <p>Convert <code>historic</code> to a <code>tsibble</code> object using <code>as_tsibble()</code>. A <code>tsibble</code> is a tidy time series data frame — it retains the date index and integrates with <code>feasts</code> functions for decomposition and visualization. Think of it as a tibble that knows it is ordered in time.</p>
+<div class="cell">
+<div class="cell-output cell-output-stderr">
+<pre><code>Using `Date` as index variable.</code></pre>
+</div>
+</div>
 </section>
 <section id="plot-the-time-series" class="level2">
 <h2 class="anchored" data-anchor-id="plot-the-time-series">2. Plot the Time Series</h2>
@@ -281,7 +286,37 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h2 class="anchored" data-anchor-id="seasonal-diagnostics">3. Seasonal Diagnostics</h2>
 <p>Before fitting any model, inspect the seasonal structure using two complementary <code>feasts</code> plots.</p>
 <p><strong>Subseries plot</strong> — one panel per month, each line is one year, the blue line is the monthly mean across all years:</p>
+<div class="cell">
+<div class="cell-output cell-output-stderr">
+<pre><code>Warning: `gg_subseries()` was deprecated in feasts 0.4.2.
+ℹ Please use `ggtime::gg_subseries()` instead.
+ℹ Graphics functions have been moved to the {ggtime} package. Please use
+  `library(ggtime)` instead.</code></pre>
+</div>
+<div class="cell-output-display">
+<div>
+<figure class="figure">
+<p><img src="lab-06_files/figure-html/unnamed-chunk-8-1.png" class="img-fluid figure-img" width="672"></p>
+</figure>
+</div>
+</div>
+</div>
 <p><strong>Seasonal plot</strong> — each line is one year plotted over the calendar cycle. Parallel lines = stable seasonal shape; diverging lines = changing pattern:</p>
+<div class="cell">
+<div class="cell-output cell-output-stderr">
+<pre><code>Warning: `gg_season()` was deprecated in feasts 0.4.2.
+ℹ Please use `ggtime::gg_season()` instead.
+ℹ Graphics functions have been moved to the {ggtime} package. Please use
+  `library(ggtime)` instead.</code></pre>
+</div>
+<div class="cell-output-display">
+<div>
+<figure class="figure">
+<p><img src="lab-06_files/figure-html/unnamed-chunk-9-1.png" class="img-fluid figure-img" width="672"></p>
+</figure>
+</div>
+</div>
+</div>
 <p><strong>Describe what you see. How are “seasons” defined in these plots? Is the seasonal shape consistent across years, or does it change? What physical process drives the May–June peak?</strong></p>
 <p>Seasons are defined by months in this plot, along with how much flow is occurring at those times. The seasonal shape is consistent across the winter and fall months, but starts to change across spring and summer months. The May-June peak flow is primarily driven by snow melt at higher altitudes.</p>
 </section>
@@ -290,14 +325,64 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>Two diagnostics that directly inform ARIMA model selection:</p>
 <p><strong>Lag plot</strong> — plots Flow against its own lagged values. Strong linear patterns = high autocorrelation (ARIMA has something to work with). A diffuse cloud = no memory. Use <code>log1p(Flow)</code> — on the raw scale, peak months compress all other observations into the corner and hide the structure.</p>
 <p>This has weak linear patterns and is more cloud-like in structure.</p>
+<div class="cell">
+<div class="cell-output cell-output-stderr">
+<pre><code>Warning: `gg_lag()` was deprecated in feasts 0.4.2.
+ℹ Please use `ggtime::gg_lag()` instead.
+ℹ Graphics functions have been moved to the {ggtime} package. Please use
+  `library(ggtime)` instead.</code></pre>
+</div>
+<div class="cell-output-display">
+<div>
+<figure class="figure">
+<p><img src="lab-06_files/figure-html/unnamed-chunk-10-1.png" class="img-fluid figure-img" width="672"></p>
+</figure>
+</div>
+</div>
+</div>
 <p><strong>Stationarity tests</strong> — ARIMA requires a stationary series (constant mean and variance). Stationary means that the statistical properties don’t change over time (mean, variance). Test formally before fitting:</p>
-<p>What do the tests tell you? If the series is non-stationary, ARIMA will need <code>d ≥ 1</code> (differencing). Does the lag plot support the same conclusion?</p>
+<div class="cell">
+<div class="cell-output cell-output-stderr">
+<pre><code>Warning in adf.test(log_flow_vec): p-value smaller than printed p-value</code></pre>
+</div>
+<div class="cell-output cell-output-stdout">
+<pre><code>
+    Augmented Dickey-Fuller Test
+
+data:  log_flow_vec
+Dickey-Fuller = -7.3292, Lag order = 5, p-value = 0.01
+alternative hypothesis: stationary</code></pre>
+</div>
+<div class="cell-output cell-output-stdout">
+<pre><code>
+    KPSS Test for Level Stationarity
+
+data:  log_flow_vec
+KPSS Level = 0.50753, Truncation lag parameter = 4, p-value = 0.03997</code></pre>
+</div>
+</div>
+<p><strong>What do the tests tell you? If the series is non-stationary, ARIMA will need <code>d ≥ 1</code> (differencing). Does the lag plot support the same conclusion?</strong></p>
 <p>We reject the null hypothesis, that the flow is non-stationary (ADF), although it looks to be non-stationary. However, the KPSS test shows that that the flow is barely non-stationary (pvalue=.04), so we cannot reject the null hypothesis that it is stationary.</p>
 </section>
 <section id="decomposition" class="level2">
 <h2 class="anchored" data-anchor-id="decomposition">5. Decomposition</h2>
 <p>Use <code>model(STL(...))</code> to decompose the time series into trend, seasonality, and remainder. Choose a trend window size you feel is appropriate and justify your choice. Extract components with <code>components()</code> and visualize with <code>autoplot()</code>.</p>
-<p>Describe what you see:</p>
+<div class="cell">
+<div class="cell-output cell-output-stderr">
+<pre><code>Warning: `autoplot.dcmp_ts()` was deprecated in fabletools 0.6.0.
+ℹ Please use `ggtime::autoplot.dcmp_ts()` instead.
+ℹ Graphics functions have been moved to the {ggtime} package. Please use
+  `library(ggtime)` instead.</code></pre>
+</div>
+<div class="cell-output-display">
+<div>
+<figure class="figure">
+<p><img src="lab-06_files/figure-html/unnamed-chunk-12-1.png" class="img-fluid figure-img" width="672"></p>
+</figure>
+</div>
+</div>
+</div>
+<p><strong>Describe what you see:</strong></p>
 <ul>
 <li>What does the <strong>trend</strong> tell you about long-term changes in Poudre flow? Is there evidence of a decline consistent with climate change or upstream demand?</li>
 </ul>
@@ -322,6 +407,11 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <section id="train-test-split" class="level3">
 <h3 class="anchored" data-anchor-id="train-test-split">Train / Test Split</h3>
 <p>Hold out the last 24 months (2022–2023) as the test set. This mirrors the <code>assess = "60 months"</code> logic from the CO₂ and Lees Ferry examples — the test set is always the most recent data, never a random sample.</p>
+<div class="cell">
+<div class="cell-output cell-output-stderr">
+<pre><code>Using date_var: date</code></pre>
+</div>
+</div>
 </section>
 <section id="model-definition" class="level3">
 <h3 class="anchored" data-anchor-id="model-definition">Model Definition</h3>
@@ -331,11 +421,101 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <section id="model-fitting" class="level3">
 <h3 class="anchored" data-anchor-id="model-fitting">Model Fitting</h3>
 <p>Fit all models to the training data on the log scale. Exclude the raw <code>Flow</code> column so models only see <code>log_flow</code> as the response — each engine handles <code>date</code> and climate predictors internally.</p>
+<div class="cell">
+<div class="cell-output cell-output-stderr">
+<pre><code>frequency = 12 observations per 1 year
+frequency = 12 observations per 1 year</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Warning in throw_err_or_depr_msg("Passed invalid argument 'info' - entries on
+it should be passed as direct arguments."): Passed invalid argument 'info' -
+entries on it should be passed as direct arguments. This warning will become an
+error in a future version.</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Warning in check.deprecation(deprecated_train_params, match.call(), ...):
+Passed invalid function arguments: nthread. These should be passed as a list to
+argument 'params'. Conversion from argument to 'params' entry will be done
+automatically, but this behavior will become an error in a future version.</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Warning in throw_err_or_depr_msg("Parameter '", match_old, "' has been renamed
+to '", : Parameter 'watchlist' has been renamed to 'evals'. This warning will
+become an error in a future version.</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Warning in check.custom.obj(params, objective): Argument 'objective' is only
+for custom objectives. For built-in objectives, pass the objective under
+'params'. This warning will become an error in a future version.</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Disabling weekly seasonality. Run prophet with weekly.seasonality=TRUE to override this.</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Disabling daily seasonality. Run prophet with daily.seasonality=TRUE to override this.</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Disabling weekly seasonality. Run prophet with weekly.seasonality=TRUE to override this.</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Disabling daily seasonality. Run prophet with daily.seasonality=TRUE to override this.</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Warning in throw_err_or_depr_msg("Passed invalid argument 'info' - entries on
+it should be passed as direct arguments."): Passed invalid argument 'info' -
+entries on it should be passed as direct arguments. This warning will become an
+error in a future version.</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Warning in check.deprecation(deprecated_train_params, match.call(), ...):
+Passed invalid function arguments: nthread. These should be passed as a list to
+argument 'params'. Conversion from argument to 'params' entry will be done
+automatically, but this behavior will become an error in a future version.</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Warning in throw_err_or_depr_msg("Parameter '", match_old, "' has been renamed
+to '", : Parameter 'watchlist' has been renamed to 'evals'. This warning will
+become an error in a future version.</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Warning in check.custom.obj(params, objective): Argument 'objective' is only
+for custom objectives. For built-in objectives, pass the objective under
+'params'. This warning will become an error in a future version.</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>frequency = 12 observations per 1 year</code></pre>
+</div>
+<div class="cell-output cell-output-stdout">
+<pre><code># Modeltime Table
+# A tibble: 6 × 3
+  .model_id .model   .model_desc                                   
+      &lt;int&gt; &lt;list&gt;   &lt;chr&gt;                                         
+1         1 &lt;fit[+]&gt; REGRESSION WITH ARIMA(3,1,0)(2,0,0)[12] ERRORS
+2         2 &lt;fit[+]&gt; ARIMA(1,0,1)(0,1,1)[12] W/ XGBOOST ERRORS     
+3         3 &lt;fit[+]&gt; PROPHET W/ REGRESSORS                         
+4         4 &lt;fit[+]&gt; PROPHET W/ XGBOOST ERRORS                     
+5         5 &lt;fit[+]&gt; ETS(A,N,A)                                    
+6         6 &lt;fit[+]&gt; EARTH                                         </code></pre>
+</div>
+</div>
 </section>
 <section id="calibration-and-accuracy" class="level3">
 <h3 class="anchored" data-anchor-id="calibration-and-accuracy">Calibration and Accuracy</h3>
 <p>Calibrate on the test set (2022–2023) to compute out-of-sample accuracy metrics. Pass <code>select(testing, -Flow)</code> so calibration uses the log-scale response:</p>
-<p>Describe what you see. Use these benchmarks to interpret the numbers:</p>
+<div class="cell">
+<div class="cell-output cell-output-stdout">
+<pre><code># A tibble: 6 × 6
+  .model_desc                                      mae  mape  mase  rmse   rsq
+  &lt;chr&gt;                                          &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt;
+1 EARTH                                          0.448  13.3 0.454 0.534 0.849
+2 ETS(A,N,A)                                     0.511  15.7 0.518 0.621 0.820
+3 ARIMA(1,0,1)(0,1,1)[12] W/ XGBOOST ERRORS      0.562  17.7 0.569 0.720 0.730
+4 PROPHET W/ REGRESSORS                          0.580  16.0 0.588 0.691 0.783
+5 REGRESSION WITH ARIMA(3,1,0)(2,0,0)[12] ERRORS 0.581  15.4 0.589 0.684 0.773
+6 PROPHET W/ XGBOOST ERRORS                      0.727  19.4 0.737 0.802 0.742</code></pre>
+</div>
+</div>
+<p><strong>Describe what you see. Use these benchmarks to interpret the numbers:</strong></p>
 <ul>
 <li><strong>MASE &lt; 1</strong> — the model beats a naïve seasonal forecast (last year’s same month)</li>
 </ul>
@@ -353,14 +533,63 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <section id="test-set-forecast" class="level3">
 <h3 class="anchored" data-anchor-id="test-set-forecast">Test Set Forecast</h3>
 <p>Forecast over the held-out test period and compare predictions to actuals. Back-transform with <code>expm1()</code> to return predictions to cfs. Two details matter: (1) <code>expm1(x)</code> is the exact inverse of <code>log1p(x)</code> and always returns values ≥ 0; (2) confidence interval lower bounds on the log scale can be slightly negative — floor them at 0 with <code>pmax(.conf_lo, 0)</code> <em>before</em> back-transforming so the ribbon never dips below zero cfs:</p>
-<p>Do predictions track actuals during the 2022–2023 test window? Are confidence intervals capturing observed values? Note any discontinuities at the 2022 boundary between training and test.</p>
-<p>For the 2022–2023 test window, the forecasts generally tracked the observed flow patterns well, particularly for the EARTH and ETS models. Seasonal timing and broad fluctuations in discharge were captured successfully, suggesting that the models learned the dominant snowmelt driven hydrologic cycle of the Cache la Poudre River. The EARTH model appeared to follow both peak and low-flow periods most closely, consistent with its lower MAE and RMSE values.</p>
-<p>The confidence intervals generally captured the observed values throughout the test period, although uncertainty widened during high-flow periods and rapid seasonal transitions. This widening is expected because spring snowmelt peaks and runoff surges are more difficult to predict accurately than stable winter baseflow conditions. Some individual peak flows may fall outside the prediction intervals, but overall interval coverage appears reasonable.</p>
+<div class="cell">
+<div class="cell-output-display">
+<div>
+<figure class="figure">
+<p><img src="lab-06_files/figure-html/unnamed-chunk-18-1.png" class="img-fluid figure-img" width="672"></p>
+</figure>
+</div>
+</div>
+</div>
+<p><strong>Do predictions track actuals during the 2022–2023 test window? Are confidence intervals capturing observed values? Note any discontinuities at the 2022 boundary between training and test.</strong></p>
+<p>For the 2022–2023 test window, the forecasts generally tracked the observed flow patterns well, particularly for the EARTH and ETS models. Seasonal timing and broad fluctuations in discharge were captured successfully, suggesting that the models learned the dominant snowmelt driven hydrologic cycle of the Cache la Poudre River.</p>
+<p>The confidence intervals generally captured the observed values throughout the test period, although uncertainty widened during highflow periods and rapid seasonal transitions. This widening is expected because spring snowmelt peaks and runoff surges are more difficult to predict accurately than stable winter baseflow conditions. Some individual peak flows may fall outside the prediction intervals, but overall interval coverage appears reasonable.</p>
 <p>At the 2022 boundary between training and test periods, slight discontinuities may be visible where forecasts begin. The relatively strong test metrics suggest discontinuities were likely modest for the better performing models.</p>
 </section>
 <section id="refit-to-full-dataset" class="level3">
 <h3 class="anchored" data-anchor-id="refit-to-full-dataset">Refit to Full Dataset</h3>
 <p>Refit all models to the complete 2013–2023 record before forecasting forward. Refitting allows auto-tuned models (<code>auto.arima</code>, <code>ets</code>) to re-optimize their parameters with more data:</p>
+<div class="cell">
+<div class="cell-output cell-output-stderr">
+<pre><code>frequency = 12 observations per 1 year
+frequency = 12 observations per 1 year</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Disabling weekly seasonality. Run prophet with weekly.seasonality=TRUE to override this.</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Disabling daily seasonality. Run prophet with daily.seasonality=TRUE to override this.</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Disabling weekly seasonality. Run prophet with weekly.seasonality=TRUE to override this.</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Disabling daily seasonality. Run prophet with daily.seasonality=TRUE to override this.</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>frequency = 12 observations per 1 year</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Warning: There were 8 warnings in `dplyr::mutate()`.
+The first warning was:
+ℹ In argument: `.model = purrr::map2(...)`.
+Caused by warning in `throw_err_or_depr_msg()`:
+! Passed invalid argument 'info' - entries on it should be passed as direct arguments. This warning will become an error in a future version.
+ℹ Run `dplyr::last_dplyr_warnings()` to see the 7 remaining warnings.</code></pre>
+</div>
+<div class="cell-output cell-output-stdout">
+<pre><code># A tibble: 6 × 6
+  .model_desc                                        mae  mape  mase  rmse   rsq
+  &lt;chr&gt;                                            &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt;
+1 EARTH                                            0.448  13.3 0.454 0.534 0.849
+2 ETS(A,N,A)                                       0.511  15.7 0.518 0.621 0.820
+3 UPDATE: ARIMA(1,0,0)(0,1,1)[12] WITH DRIFT W/ X… 0.562  17.7 0.569 0.720 0.730
+4 PROPHET W/ REGRESSORS                            0.580  16.0 0.588 0.691 0.783
+5 REGRESSION WITH ARIMA(3,1,0)(2,0,0)[12] ERRORS   0.581  15.4 0.589 0.684 0.773
+6 PROPHET W/ XGBOOST ERRORS                        0.727  19.4 0.737 0.802 0.742</code></pre>
+</div>
+</div>
 <p><strong>Do the accuracy metrics change after refitting? Why or why not?</strong></p>
 <p>The values are essentially identical to those from the 2022–2023 calibration results. This indicates that model rankings and overall predictive behavior remained stable even after incorporating the additional observations into training.</p>
 <p>The minimal change occurred because the refit process updated model parameters using a small amount of additional data compared to the full historical record. Since the models had already learned the dominant seasonal and climate driven flow patterns during calibration, adding the remaining observations did not drastically alter performance metrics.</p>
@@ -368,12 +597,37 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <section id="forecast-into-the-future-20242033" class="level3">
 <h3 class="anchored" data-anchor-id="forecast-into-the-future-20242033">Forecast into the Future (2024–2033)</h3>
 <p>Use the refitted models with <code>future_tbl</code> as <code>new_data</code> to generate a 10-year climate-conditioned forecast. Back-transform with <code>expm1()</code>:</p>
+<div class="cell">
+<div class="cell-output cell-output-stderr">
+<pre><code>Error: Problem occurred during prediction. Error in setup_dataframe(object,
+df): Unable to parse date format in column ds. Convert to date format (%Y-%m-%d
+or %Y-%m-%d %H:%M:%S) and check that there are no NAs.
+Error: Problem occurred during prediction. Error in setup_dataframe(object,
+df): Unable to parse date format in column ds. Convert to date format (%Y-%m-%d
+or %Y-%m-%d %H:%M:%S) and check that there are no NAs.</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Warning: Removed 4 rows containing missing values or values outside the scale range
+(`geom_line()`).</code></pre>
+</div>
+<div class="cell-output cell-output-stderr">
+<pre><code>Warning: Removed 4 rows containing missing values or values outside the scale range
+(`geom_ribbon()`).</code></pre>
+</div>
+<div class="cell-output-display">
+<div>
+<figure class="figure">
+<p><img src="lab-06_files/figure-html/unnamed-chunk-20-1.png" class="img-fluid figure-img" width="672"></p>
+</figure>
+</div>
+</div>
+</div>
 <hr>
 </section>
 </section>
 <section id="wrap-up" class="level2">
 <h2 class="anchored" data-anchor-id="wrap-up">Wrap-up</h2>
-<p>Examine your 10-year forecast and reflect on the following:</p>
+<p><strong>Examine your 10-year forecast and reflect on the following:</strong></p>
 <ol type="1">
 <li><strong>Model agreement</strong>: Do ARIMA and Prophet project similar trajectories? If they diverge, what does that tell you about their different assumptions (statistical stationarity vs.&nbsp;flexible trend)?</li>
 </ol>

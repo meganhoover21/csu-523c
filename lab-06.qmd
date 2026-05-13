@@ -22,6 +22,7 @@ This mirrors the Lees Ferry forecasting example from lecture — same `dataRetri
 
 ```{r}
 #| message: false
+#| echo: false
 library(tidyverse)
 library(plotly)
 library(remotes) #allows package install elsewhere
@@ -179,6 +180,8 @@ Before fitting any model, inspect the seasonal structure using two complementary
 
 ```{r}
 #| echo: false
+ #| message: false
+#| warning: false
 gg_subseries(pf, y = Flow) +
   labs(title = "Monthly Flow Patterns — Poudre at Mouth",
        y = "Flow (cfs)", x = "Year") +
@@ -189,6 +192,8 @@ gg_subseries(pf, y = Flow) +
 
 ```{r}
 #| echo: false
+#|  message: false
+#| warning: false
 gg_season(pf, y = Flow) +
   labs(title = "Seasonal Shape by Year",
        y = "Flow (cfs)", x = "Month") +
@@ -209,6 +214,8 @@ This has weak linear patterns and is more cloud-like in structure.
 
 ```{r}
 #| echo: false
+#| message: false
+#| warning: false
 pf |>
   mutate(log_flow = log1p(Flow)) |>
   gg_lag(y = log_flow, geom = "point") +
@@ -221,6 +228,8 @@ pf |>
 
 ```{r}
 #| echo: false
+#|  message: false
+#| warning: false
 # Test on log_flow — that's what ARIMA will actually model
 log_flow_vec <- log1p(pf$Flow)
 
@@ -241,6 +250,8 @@ Use `model(STL(...))` to decompose the time series into trend, seasonality, and 
 
 ```{r}
 #| echo: false
+#| message: false
+#| warning: false
 decomp <- pf |>
   model(STL(Flow ~ trend(window = 12) + season(window = "periodic"))) |>
   components()
@@ -273,7 +284,8 @@ Convert the historic tsibble and future tibble to plain tibbles with a `Date` co
 Streamflow is strictly non-negative but right-skewed — snowmelt peaks dwarf base-flow months. To prevent models from predicting negative flows, add a **log-transformed response** with `log1p(Flow)` (`log(Flow + 1)`, safe when flow is near zero). Fit all models on `log_flow`; back-transform predictions with `expm1()` (= `exp(x) - 1`) to return to cfs units.
 
 ```{r}
-#| echo: false
+#| message: false
+#| warning: false
 pf_tbl <- pf |>
   as_tibble() |>
   mutate(date     = as.Date(Date),
@@ -290,7 +302,8 @@ future_tbl <- future |>
 Hold out the last 24 months (2022–2023) as the test set. This mirrors the `assess = "60 months"` logic from the CO₂ and Lees Ferry examples — the test set is always the most recent data, never a random sample.
 
 ```{r}
-#| echo: false
+#| message: false
+#| warning: false
 # Note: time_series_split() is deterministic — it always cuts at the same point
 # regardless of the seed. set.seed() is kept here as a tidymodels convention
 # (some resampling functions are random), but removing it gives identical results.
@@ -308,7 +321,8 @@ Choose at least three models — one ARIMA and one Prophet are required. Store m
 The selected were chosen due to the non-linear seasonal trends, peaks, and non-linear cliamte responses.
 
 ```{r}
-#| echo: false
+#| message: false
+#| warning: false
 mods <- list(
   # Classical seasonal ARIMA — relies on stationarity (check your tests above)
  arima_reg() |> set_engine("auto_arima"),
@@ -335,7 +349,8 @@ mods <- list(
 Fit all models to the training data on the log scale. Exclude the raw `Flow` column so models only see `log_flow` as the response — each engine handles `date` and climate predictors internally.
 
 ```{r}
-#| echo: false
+#| message: false
+#| warning: false
 models <- map(mods, ~ fit(.x, log_flow ~ ., data = select(training, -Flow)))
 
 (models_tbl <- as_modeltime_table(models))
@@ -346,7 +361,8 @@ models <- map(mods, ~ fit(.x, log_flow ~ ., data = select(training, -Flow)))
 Calibrate on the test set (2022–2023) to compute out-of-sample accuracy metrics. Pass `select(testing, -Flow)` so calibration uses the log-scale response:
 
 ```{r}
-#| echo: false
+#| message: false
+#| warning: false
 
 calibration_table <- modeltime_calibrate(
   models_tbl,
@@ -383,7 +399,8 @@ The ARIMA-boost version improved slightly in MAE and MASE, butRMSE worsened subs
 Forecast over the held-out test period and compare predictions to actuals. Back-transform with `expm1()` to return predictions to cfs. Two details matter: (1) `expm1(x)` is the exact inverse of `log1p(x)` and always returns values ≥ 0; (2) confidence interval lower bounds on the log scale can be slightly negative — floor them at 0 with `pmax(.conf_lo, 0)` *before* back-transforming so the ribbon never dips below zero cfs:
 
 ```{r}
-#| echo: false
+#| message: false
+#| warning: false
 test_forecast <- calibration_table |>
   modeltime_forecast(new_data = select(testing, -Flow), actual_data = pf_tbl) |>
   mutate(.value   = expm1(.value),
@@ -420,7 +437,8 @@ At the 2022 boundary between training and test periods, slight discontinuities m
 Refit all models to the complete 2013–2023 record before forecasting forward. Refitting allows auto-tuned models (`auto.arima`, `ets`) to re-optimize their parameters with more data:
 
 ```{r}
-#| echo: false
+#| message: false
+#| warning: false
 refit_tbl <- modeltime_refit(calibration_table, data = select(pf_tbl, -Flow))
 
 modeltime_accuracy(refit_tbl) |>
@@ -439,7 +457,9 @@ The minimal change occurred because the refit process updated model parameters u
 Use the refitted models with `future_tbl` as `new_data` to generate a 10-year climate-conditioned forecast. Back-transform with `expm1()`:
 
 ```{r}
-#| echo: false
+#| message: false
+#| warning: false
+
 future_forecast <- refit_tbl |>
   modeltime_forecast(new_data = future_tbl, actual_data = pf_tbl) |>
   mutate(.value   = expm1(.value),
