@@ -231,7 +231,7 @@ adf.test(log_flow_vec) #pvalue= .01 we reject the null hypothesis that the log f
 kpss.test(log_flow_vec) #pvalue=.04 we reject the null hypothesis that the log flow is stationary
 ```
 
-What do the tests tell you? If the series is non-stationary, ARIMA will need `d ≥ 1` (differencing). Does the lag plot support the same conclusion?
+**What do the tests tell you? If the series is non-stationary, ARIMA will need `d ≥ 1` (differencing). Does the lag plot support the same conclusion?**
 
 We reject the null hypothesis, that the flow is non-stationary (ADF), although it looks to be non-stationary. However, the KPSS test shows that that the flow is barely non-stationary (pvalue=.04), so we cannot reject the null hypothesis that it is stationary.
 
